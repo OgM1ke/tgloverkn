@@ -553,14 +553,11 @@
             exportImage();
         });
 
-// ЗАМЕНИТЕ функцию exportImage на эту версию:
-
         function exportImage() {
             if (!currentImage) return;
             
             const rotation = getCurrentRotation();
             
-            // Создаем canvas для работы
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             const width = currentImage.naturalWidth;
@@ -569,39 +566,44 @@
             canvas.width = width;
             canvas.height = height;
         
-            // 1. Рисуем фон (размытый или обычный)
+            // Размытие через уменьшение-увеличение (работает везде)
             if (currentBlur > 0) {
-                // Для мобильных: используем упрощенный blur если фильтр не работает
-                try {
-                    // Пробуем нативный blur
-                    ctx.filter = `blur(${currentBlur}px)`;
-                    ctx.drawImage(currentImage, 0, 0, width, height);
-                    ctx.filter = 'none';
-                } catch (e) {
-                    // Fallback: рисуем без размытия если не поддерживается
-                    ctx.drawImage(currentImage, 0, 0, width, height);
-                }
+                const blurAmount = currentBlur / 100; // конвертируем в доли
+                const smallWidth = Math.max(1, Math.floor(width * (1 - blurAmount)));
+                const smallHeight = Math.max(1, Math.floor(height * (1 - blurAmount)));
+                
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = smallWidth;
+                tempCanvas.height = smallHeight;
+                
+                // Рисуем маленькую версию
+                tempCtx.drawImage(currentImage, 0, 0, smallWidth, smallHeight);
+                
+                // Растягиваем обратно с интерполяцией (эффект размытия)
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(tempCanvas, 0, 0, smallWidth, smallHeight, 0, 0, width, height);
             } else {
                 ctx.drawImage(currentImage, 0, 0, width, height);
             }
         
-            // 2. Рисуем спиннер
+            // Рисуем спиннер
             const centerX = width / 2;
             const centerY = height / 2;
-            const spinnerSize = Math.min(width, height) * 0.12; // 12% от меньшей стороны
+            const spinnerSize = Math.min(width, height) * 0.12;
             
             drawTelegramSpinner(ctx, centerX, centerY, spinnerSize, rotation);
         
-            // 3. Скачивание с поддержкой мобильных
             const dataUrl = canvas.toDataURL('image/png');
             const filename = 'telegram-loading-' + Date.now() + '.png';
             
-            // Проверяем iOS/Safari
+            // Определяем устройство
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            const isAndroid = /Android/.test(navigator.userAgent);
             
-            if (isIOS || isSafari) {
-                // Для iOS: открываем в новом окне (пользователь должен вручную сохранить)
+            if (isAndroid) {
+                // Для Android: открываем в новом окне
                 const newWindow = window.open();
                 if (newWindow) {
                     newWindow.document.write(`
@@ -616,41 +618,30 @@
                         </html>
                     `);
                 } else {
-                    // Fallback: прямое открытие
                     window.location.href = dataUrl;
                 }
                 showToast();
                 return;
             }
             
-            // Для Android и других: пробуем скачивание
+            // Для iOS и остальных: автоматическое скачивание
             try {
                 const link = document.createElement('a');
                 link.download = filename;
                 link.href = dataUrl;
                 link.style.display = 'none';
                 document.body.appendChild(link);
-                
-                // Имитируем клик
-                const clickEvent = new MouseEvent('click', {
-                    view: window,
-                    bubbles: true,
-                    cancelable: true
-                });
-                link.dispatchEvent(clickEvent);
-                
+                link.click();
                 setTimeout(() => {
                     document.body.removeChild(link);
                 }, 100);
-                
                 showToast();
             } catch (e) {
-                // Fallback если автоматическое скачивание заблокировано
                 window.open(dataUrl, '_blank');
             }
         }
         
-        // ЗАМЕНИТЕ функцию drawTelegramSpinner на более совместимую:
+        
         
         function drawTelegramSpinner(ctx, x, y, size, rotation) {
             ctx.save();
