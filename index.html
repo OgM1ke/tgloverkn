@@ -553,106 +553,155 @@
             exportImage();
         });
 
+// ЗАМЕНИТЕ функцию exportImage на эту версию:
+
         function exportImage() {
-            const ctx = exportCanvas.getContext('2d');
+            if (!currentImage) return;
+            
+            const rotation = getCurrentRotation();
+            
+            // Создаем canvas для работы
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
             const width = currentImage.naturalWidth;
             const height = currentImage.naturalHeight;
             
-            // Создаем временный canvas для размытия без прозрачности
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            
-            const padding = Math.ceil(currentBlur * 3);
-            tempCanvas.width = width + padding * 2;
-            tempCanvas.height = height + padding * 2;
-            
-            tempCtx.drawImage(currentImage, padding, padding, width, height);
-            
-            // Заполняем края
-            tempCtx.drawImage(currentImage, 0, 0, 1, height, 0, padding, padding, height);
-            tempCtx.drawImage(currentImage, width-1, 0, 1, height, width+padding, padding, padding, height);
-            tempCtx.drawImage(currentImage, 0, 0, width, 1, padding, 0, width, padding);
-            tempCtx.drawImage(currentImage, 0, height-1, width, 1, padding, height+padding, width, padding);
-            
-            tempCtx.filter = `blur(${currentBlur}px)`;
-            tempCtx.drawImage(tempCanvas, 0, 0);
-            tempCtx.filter = 'none';
-            
-            exportCanvas.width = width;
-            exportCanvas.height = height;
-            
-            ctx.drawImage(tempCanvas, padding, padding, width, height, 0, 0, width, height);
-
-            // Рисуем спиннер в центре
+            canvas.width = width;
+            canvas.height = height;
+        
+            // 1. Рисуем фон (размытый или обычный)
+            if (currentBlur > 0) {
+                // Для мобильных: используем упрощенный blur если фильтр не работает
+                try {
+                    // Пробуем нативный blur
+                    ctx.filter = `blur(${currentBlur}px)`;
+                    ctx.drawImage(currentImage, 0, 0, width, height);
+                    ctx.filter = 'none';
+                } catch (e) {
+                    // Fallback: рисуем без размытия если не поддерживается
+                    ctx.drawImage(currentImage, 0, 0, width, height);
+                }
+            } else {
+                ctx.drawImage(currentImage, 0, 0, width, height);
+            }
+        
+            // 2. Рисуем спиннер
             const centerX = width / 2;
             const centerY = height / 2;
+            const spinnerSize = Math.min(width, height) * 0.12; // 12% от меньшей стороны
             
-            // Масштабируем золотой стандарт 156px к размеру изображения
-            // Используем ту же логику что и в CSS: 80px спиннер относительно ширины превью
-            const previewWidth = previewContainer.offsetWidth;
-            const scaleFactor = width / previewWidth;
-            const spinnerSize = 80 * scaleFactor;
-
-            const rotation = getCurrentRotation();
-
             drawTelegramSpinner(ctx, centerX, centerY, spinnerSize, rotation);
-
-            const link = document.createElement('a');
-            link.download = 'telegram-loading-' + Date.now() + '.png';
-            link.href = exportCanvas.toDataURL('image/png');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            showToast();
+        
+            // 3. Скачивание с поддержкой мобильных
+            const dataUrl = canvas.toDataURL('image/png');
+            const filename = 'telegram-loading-' + Date.now() + '.png';
+            
+            // Проверяем iOS/Safari
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            
+            if (isIOS || isSafari) {
+                // Для iOS: открываем в новом окне (пользователь должен вручную сохранить)
+                const newWindow = window.open();
+                if (newWindow) {
+                    newWindow.document.write(`
+                        <html>
+                        <head><title>Сохраните фото</title></head>
+                        <body style="margin:0;display:flex;justify-content:center;align-items:center;background:#000;">
+                            <img src="${dataUrl}" style="max-width:100%;" onclick="window.location.href='${dataUrl}'">
+                            <div style="position:fixed;top:20px;left:0;right:0;text-align:center;color:white;font-family:sans-serif;">
+                                Нажмите и удерживайте фото, чтобы сохранить
+                            </div>
+                        </body>
+                        </html>
+                    `);
+                } else {
+                    // Fallback: прямое открытие
+                    window.location.href = dataUrl;
+                }
+                showToast();
+                return;
+            }
+            
+            // Для Android и других: пробуем скачивание
+            try {
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = dataUrl;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                
+                // Имитируем клик
+                const clickEvent = new MouseEvent('click', {
+                    view: window,
+                    bubbles: true,
+                    cancelable: true
+                });
+                link.dispatchEvent(clickEvent);
+                
+                setTimeout(() => {
+                    document.body.removeChild(link);
+                }, 100);
+                
+                showToast();
+            } catch (e) {
+                // Fallback если автоматическое скачивание заблокировано
+                window.open(dataUrl, '_blank');
+            }
         }
-
+        
+        // ЗАМЕНИТЕ функцию drawTelegramSpinner на более совместимую:
+        
         function drawTelegramSpinner(ctx, x, y, size, rotation) {
             ctx.save();
             ctx.translate(x, y);
             
-            // Масштаб от золотого стандарта 156px
             const scale = size / 156;
             
             // Серый фон круга
             ctx.beginPath();
             ctx.arc(0, 0, 78 * scale, 0, Math.PI * 2);
-            ctx.fillStyle = '#484848';
+            ctx.fillStyle = '#6D6D6D';
             ctx.fill();
-
-            // Размытый оверлей (жидкое стекло)
+        
+            // Размытый оверлей (без filter для совместимости)
             if (currentBlur > 0) {
                 ctx.save();
                 ctx.beginPath();
                 ctx.arc(0, 0, 78 * scale, 0, Math.PI * 2);
                 ctx.clip();
                 
-                ctx.globalAlpha = 0.35;
-                ctx.filter = `blur(${currentBlur}px)`;
+                ctx.globalAlpha = 0.15;
                 
-                ctx.drawImage(currentImage, -x, -y, currentImage.naturalWidth, currentImage.naturalHeight);
+                // Пробуем применить blur, если не получится — рисуем без него
+                try {
+                    ctx.filter = `blur(${currentBlur}px)`;
+                    ctx.drawImage(currentImage, -x, -y, currentImage.naturalWidth, currentImage.naturalHeight);
+                    ctx.filter = 'none';
+                } catch (e) {
+                    // Без blur если не поддерживается
+                    ctx.drawImage(currentImage, -x, -y, currentImage.naturalWidth, currentImage.naturalHeight);
+                }
                 
                 ctx.restore();
             }
-
+        
             // Белая дуга
             ctx.save();
             ctx.rotate((rotation * Math.PI) / 180);
             
             ctx.beginPath();
-            // Золотой стандарт: радиус 63px (156/2 - 15), дуга ~60 градусов
             ctx.arc(0, 0, 63 * scale, 0, Math.PI * 0.33);
             ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 10 * scale; // Точно 10px в масштабе
+            ctx.lineWidth = 10 * scale;
             ctx.lineCap = 'round';
             ctx.stroke();
             ctx.restore();
-
+        
             // Белый крест
-            // Золотой стандарт: от центра 23px (половина 46px видимой части ~70px)
             const halfCross = 23 * scale;
             ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 8 * scale; // Точно 8px в масштабе
+            ctx.lineWidth = 8 * scale;
             ctx.lineCap = 'round';
             
             ctx.beginPath();
@@ -664,7 +713,7 @@
             ctx.moveTo(halfCross, -halfCross);
             ctx.lineTo(-halfCross, halfCross);
             ctx.stroke();
-
+        
             ctx.restore();
         }
 
