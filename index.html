@@ -600,18 +600,25 @@
             saveModal.classList.remove('active');
         }
 
-        // ПРОВЕРЕННОЕ размытие для iOS — многократное уменьшение/увеличение
-        function applyIOSBlur(canvas, width, height, radius) {
-            if (radius <= 0) return;
+        // РАЗМЫТИЕ ДЛЯ iOS — читаем из одного canvas, пишем в другой
+        function applyIOSBlur(sourceCanvas, width, height, radius) {
+            if (radius <= 0) return sourceCanvas;
             
-            const ctx = canvas.getContext('2d');
+            // Создаем целевой canvas (НЕ тот же что источник)
+            const targetCanvas = document.createElement('canvas');
+            const targetCtx = targetCanvas.getContext('2d');
+            targetCanvas.width = width;
+            targetCanvas.height = height;
             
-            // Количество проходов зависит от силы размытия
+            // Количество проходов
             const passes = Math.max(1, Math.floor(radius / 5));
             
+            // Начинаем с копии исходника
+            targetCtx.drawImage(sourceCanvas, 0, 0);
+            
             for (let pass = 0; pass < passes; pass++) {
-                // Коэффициент уменьшения для этого прохода
-                const scale = Math.max(0.1, 0.3 + (pass * 0.1));
+                // Коэффициент уменьшения (0.08 как советовали)
+                const scale = Math.max(0.02, 1 / (1 + radius * 0.08));
                 const smallW = Math.max(2, Math.floor(width * scale));
                 const smallH = Math.max(2, Math.floor(height * scale));
                 
@@ -620,15 +627,17 @@
                 small.width = smallW;
                 small.height = smallH;
                 
-                // Рисуем уменьшенное
-                smallCtx.drawImage(canvas, 0, 0, width, height, 0, 0, smallW, smallH);
+                // Читаем из target, уменьшаем
+                smallCtx.drawImage(targetCanvas, 0, 0, width, height, 0, 0, smallW, smallH);
                 
-                // Очищаем и рисуем обратно увеличенным
-                ctx.clearRect(0, 0, width, height);
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'low';
-                ctx.drawImage(small, 0, 0, smallW, smallH, 0, 0, width, height);
+                // Очищаем target и рисуем обратно увеличенным
+                targetCtx.clearRect(0, 0, width, height);
+                targetCtx.imageSmoothingEnabled = true;
+                targetCtx.imageSmoothingQuality = 'low';
+                targetCtx.drawImage(small, 0, 0, smallW, smallH, 0, 0, width, height);
             }
+            
+            return targetCanvas;
         }
 
         function exportImage() {
@@ -639,39 +648,51 @@
             exportCanvas.width = width;
             exportCanvas.height = height;
 
-            // Рисуем исходное изображение
-            ctx.drawImage(currentImage, 0, 0, width, height);
-
-            // ПРИМЕНЯЕМ РАЗМЫТИЕ НАПРЯМУЮ К EXPORTCANVAS
+            // === ВАЖНО: Сначала рисуем во временный canvas, потом размываем, потом копируем ===
+            
+            // 1. Временный canvas для обработки
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            
+            // 2. Рисуем исходное изображение
+            tempCtx.drawImage(currentImage, 0, 0, width, height);
+            
+            // 3. Применяем размытие (iOS или обычное)
+            let processedCanvas = tempCanvas;
+            
             if (currentBlur > 0) {
                 if (isIOS) {
-                    // iOS: многократное масштабирование
-                    applyIOSBlur(exportCanvas, width, height, currentBlur);
+                    // iOS: размываем через downscale/upscale в ОТДЕЛЬНЫЙ canvas
+                    processedCanvas = applyIOSBlur(tempCanvas, width, height, currentBlur);
                 } else {
-                    // ПК/Android: CSS filter через временный canvas
-                    const tempCanvas = document.createElement('canvas');
-                    const tempCtx = tempCanvas.getContext('2d');
+                    // ПК/Android: CSS filter
+                    const blurCanvas = document.createElement('canvas');
+                    const blurCtx = blurCanvas.getContext('2d');
                     
                     const padding = Math.ceil(currentBlur * 3);
-                    tempCanvas.width = width + padding * 2;
-                    tempCanvas.height = height + padding * 2;
+                    blurCanvas.width = width + padding * 2;
+                    blurCanvas.height = height + padding * 2;
 
-                    tempCtx.drawImage(currentImage, padding, padding, width, height);
+                    blurCtx.drawImage(currentImage, padding, padding, width, height);
+                    blurCtx.drawImage(currentImage, 0, 0, 1, height, 0, padding, padding, height);
+                    blurCtx.drawImage(currentImage, width-1, 0, 1, height, width+padding, padding, padding, height);
+                    blurCtx.drawImage(currentImage, 0, 0, width, 1, padding, 0, width, padding);
+                    blurCtx.drawImage(currentImage, 0, height-1, width, 1, padding, height+padding, width, padding);
+
+                    blurCtx.filter = `blur(${currentBlur}px)`;
+                    blurCtx.drawImage(blurCanvas, 0, 0);
+                    blurCtx.filter = 'none';
                     
-                    // Заполняем края
-                    tempCtx.drawImage(currentImage, 0, 0, 1, height, 0, padding, padding, height);
-                    tempCtx.drawImage(currentImage, width-1, 0, 1, height, width+padding, padding, padding, height);
-                    tempCtx.drawImage(currentImage, 0, 0, width, 1, padding, 0, width, padding);
-                    tempCtx.drawImage(currentImage, 0, height-1, width, 1, padding, height+padding, width, padding);
-
-                    tempCtx.filter = `blur(${currentBlur}px)`;
-                    tempCtx.drawImage(tempCanvas, 0, 0);
-                    tempCtx.filter = 'none';
-
-                    ctx.clearRect(0, 0, width, height);
-                    ctx.drawImage(tempCanvas, padding, padding, width, height, 0, 0, width, height);
+                    // Копируем результат в tempCanvas
+                    tempCtx.clearRect(0, 0, width, height);
+                    tempCtx.drawImage(blurCanvas, padding, padding, width, height, 0, 0, width, height);
                 }
             }
+            
+            // 4. Копируем результат в exportCanvas
+            ctx.drawImage(processedCanvas, 0, 0);
 
             // Рисуем спиннер
             const centerX = width / 2;
@@ -786,10 +807,9 @@
 
                     glassCtx.drawImage(currentImage, sourceX, sourceY, sourceSize, sourceSize, 0, 0, glassSize, glassSize);
                     
-                    // Применяем то же размытие к стеклу
-                    applyIOSBlur(glassCanvas, glassSize, glassSize, currentBlur);
-
-                    ctx.drawImage(glassCanvas, -78 * scale, -78 * scale, 156 * scale, 156 * scale);
+                    // Размываем стекло
+                    const blurredGlass = applyIOSBlur(glassCanvas, glassSize, glassSize, currentBlur);
+                    ctx.drawImage(blurredGlass, -78 * scale, -78 * scale, 156 * scale, 156 * scale);
                 } else {
                     ctx.filter = `blur(${currentBlur}px)`;
                     ctx.drawImage(currentImage, -x, -y, currentImage.naturalWidth, currentImage.naturalHeight);
