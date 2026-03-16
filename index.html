@@ -323,6 +323,59 @@
             opacity: 1;
         }
 
+        /* Модальное окно для сохранения на Android */
+        .save-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 2000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .save-modal.active {
+            display: flex;
+        }
+
+        .save-modal-content {
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .save-modal img {
+            max-width: 100%;
+            max-height: 60vh;
+            border-radius: 12px;
+            margin-bottom: 24px;
+        }
+
+        .save-instruction {
+            color: #ffffff;
+            font-size: 17px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .save-instruction-hint {
+            color: #8e8e93;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+
+        .save-modal-close {
+            background: #0a84ff;
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
         @media (max-width: 480px) {
             body {
                 padding: 20px 16px;
@@ -356,6 +409,7 @@
             }
         }
     </style>
+<base target="_blank">
 </head>
 <body>
     <h1>Telegram Glass Loading</h1>
@@ -385,24 +439,24 @@
 
         <div class="preview-container" id="previewContainer">
             <img class="preview-image" id="previewImage" alt="Preview">
-            
+
             <div class="spinner-wrapper">
                 <div class="spinner-container">
                     <!-- Серый фон -->
                     <div class="spinner-bg"></div>
-                    
+
                     <!-- Размытый оверлей (жидкое стекло) -->
                     <div class="spinner-glass" id="spinnerGlass">
                         <img class="spinner-glass-img" id="spinnerGlassImg" alt="">
                     </div>
-                    
+
                     <!-- Белая дуга (вращается) - ТОЛЬКО ОДНА -->
                     <div class="spinner-arc" id="spinnerArc">
                         <svg viewBox="0 0 100 100">
                             <circle cx="50" cy="50" r="38"/>
                         </svg>
                     </div>
-                    
+
                     <!-- Белый крест - золотой стандарт -->
                     <div class="spinner-cross">
                         <svg viewBox="0 0 51 51">
@@ -417,6 +471,20 @@
         <div class="actions" id="actions" style="display: none;">
             <button class="btn btn-secondary" id="newPhotoBtn">Новое фото</button>
             <button class="btn btn-primary" id="downloadBtn">Сохранить фото</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно для Android -->
+    <div class="save-modal" id="saveModal">
+        <div class="save-modal-content">
+            <img id="saveModalImg" src="" alt="Сохраните фото">
+            <div class="save-instruction">
+                📱 Удерживайте палец на фото<br>и выберите «Сохранить изображение»
+            </div>
+            <div class="save-instruction-hint">
+                Или нажмите кнопку ниже, чтобы поделиться
+            </div>
+            <button class="save-modal-close" id="saveModalClose">Готово</button>
         </div>
     </div>
 
@@ -438,10 +506,17 @@
         const downloadBtn = document.getElementById('downloadBtn');
         const exportCanvas = document.getElementById('exportCanvas');
         const toast = document.getElementById('toast');
+        const saveModal = document.getElementById('saveModal');
+        const saveModalImg = document.getElementById('saveModalImg');
+        const saveModalClose = document.getElementById('saveModalClose');
 
         let currentImage = null;
         let currentBlur = 0;
         let isProcessing = false;
+
+        // Определяем устройство
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
 
         // Загрузка файла
         uploadArea.addEventListener('click', (e) => {
@@ -449,7 +524,7 @@
                 fileInput.click();
             }
         });
-        
+
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -495,9 +570,9 @@
                     controls.style.display = 'block';
                     actions.style.display = 'flex';
                     uploadArea.style.display = 'none';
-                    
+
                     updateContainerSize();
-                    
+
                     blurSlider.value = 10;
                     updateBlur(10);
                 };
@@ -527,16 +602,16 @@
         newPhotoBtn.addEventListener('click', () => {
             currentImage = null;
             currentBlur = 0;
-            
+
             previewImage.src = '';
             spinnerGlassImg.src = '';
             fileInput.value = '';
-            
+
             previewContainer.classList.remove('active');
             controls.style.display = 'none';
             actions.style.display = 'none';
             uploadArea.style.display = 'block';
-            
+
             blurSlider.value = 0;
             blurValue.textContent = '0px';
         });
@@ -553,79 +628,162 @@
             exportImage();
         });
 
+        // Функция размытия через масштабирование (работает везде включая iOS)
+        function applyBlurToCanvas(ctx, width, height, blurAmount) {
+            if (blurAmount <= 0) return;
+
+            // Получаем данные изображения
+            const imgData = ctx.getImageData(0, 0, width, height);
+
+            // Применяем простое box blur
+            const radius = Math.ceil(blurAmount / 2);
+            const data = imgData.data;
+            const width4 = width * 4;
+
+            // Создаем временный буфер
+            const tempData = new Uint8ClampedArray(data);
+
+            // Горизонтальный проход
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    let r = 0, g = 0, b = 0, count = 0;
+
+                    for (let k = -radius; k <= radius; k++) {
+                        const px = x + k;
+                        if (px >= 0 && px < width) {
+                            const idx = y * width4 + px * 4;
+                            r += tempData[idx];
+                            g += tempData[idx + 1];
+                            b += tempData[idx + 2];
+                            count++;
+                        }
+                    }
+
+                    const idx = y * width4 + x * 4;
+                    data[idx] = r / count;
+                    data[idx + 1] = g / count;
+                    data[idx + 2] = b / count;
+                }
+            }
+
+            // Вертикальный проход
+            tempData.set(data);
+            for (let x = 0; x < width; x++) {
+                for (let y = 0; y < height; y++) {
+                    let r = 0, g = 0, b = 0, count = 0;
+
+                    for (let k = -radius; k <= radius; k++) {
+                        const py = y + k;
+                        if (py >= 0 && py < height) {
+                            const idx = py * width4 + x * 4;
+                            r += tempData[idx];
+                            g += tempData[idx + 1];
+                            b += tempData[idx + 2];
+                            count++;
+                        }
+                    }
+
+                    const idx = y * width4 + x * 4;
+                    data[idx] = r / count;
+                    data[idx + 1] = g / count;
+                    data[idx + 2] = b / count;
+                }
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+        }
+
         function exportImage() {
             if (!currentImage) return;
-            
+
             const rotation = getCurrentRotation();
-            
+
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             const width = currentImage.naturalWidth;
             const height = currentImage.naturalHeight;
-            
+
             canvas.width = width;
             canvas.height = height;
-        
-            // Размытие через уменьшение-увеличение (работает везде)
+
+            // Рисуем оригинальное изображение
+            ctx.drawImage(currentImage, 0, 0, width, height);
+
+            // Применяем размытие через алгоритм (работает на iOS!)
             if (currentBlur > 0) {
-                const blurAmount = currentBlur / 100; // конвертируем в доли
-                const smallWidth = Math.max(1, Math.floor(width * (1 - blurAmount)));
-                const smallHeight = Math.max(1, Math.floor(height * (1 - blurAmount)));
-                
-                const tempCanvas = document.createElement('canvas');
-                const tempCtx = tempCanvas.getContext('2d');
-                tempCanvas.width = smallWidth;
-                tempCanvas.height = smallHeight;
-                
-                // Рисуем маленькую версию
-                tempCtx.drawImage(currentImage, 0, 0, smallWidth, smallHeight);
-                
-                // Растягиваем обратно с интерполяцией (эффект размытия)
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                ctx.drawImage(tempCanvas, 0, 0, smallWidth, smallHeight, 0, 0, width, height);
-            } else {
-                ctx.drawImage(currentImage, 0, 0, width, height);
+                applyBlurToCanvas(ctx, width, height, currentBlur);
             }
-        
+
             // Рисуем спиннер
             const centerX = width / 2;
             const centerY = height / 2;
             const spinnerSize = Math.min(width, height) * 0.12;
-            
+
             drawTelegramSpinner(ctx, centerX, centerY, spinnerSize, rotation);
-        
+
             const dataUrl = canvas.toDataURL('image/png');
-            const filename = 'telegram-loading-' + Date.now() + '.png';
-            
-            // Определяем устройство
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-            const isAndroid = /Android/.test(navigator.userAgent);
-            
+
             if (isAndroid) {
-                // Для Android: открываем в новом окне
-                const newWindow = window.open();
-                if (newWindow) {
-                    newWindow.document.write(`
-                        <html>
-                        <head><title>Сохраните фото</title></head>
-                        <body style="margin:0;display:flex;justify-content:center;align-items:center;background:#000;">
-                            <img src="${dataUrl}" style="max-width:100%;" onclick="window.location.href='${dataUrl}'">
-                            <div style="position:fixed;top:20px;left:0;right:0;text-align:center;color:white;font-family:sans-serif;">
-                                Нажмите и удерживайте фото, чтобы сохранить
-                            </div>
-                        </body>
-                        </html>
-                    `);
-                } else {
-                    window.location.href = dataUrl;
-                }
-                showToast();
-                return;
-            }
-            
-            // Для iOS и остальных: автоматическое скачивание
-            try {
+                // Для Android: показываем модальное окно с инструкцией
+                saveModalImg.src = dataUrl;
+                saveModal.classList.add('active');
+
+                // Также пробуем открыть в новой вкладке как fallback
+                setTimeout(() => {
+                    const newWindow = window.open();
+                    if (newWindow) {
+                        newWindow.document.write(`
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                <title>Сохраните фото</title>
+                                <style>
+                                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                                    body { 
+                                        background: #000; 
+                                        display: flex; 
+                                        flex-direction: column;
+                                        align-items: center; 
+                                        justify-content: center; 
+                                        min-height: 100vh;
+                                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                        padding: 20px;
+                                    }
+                                    img { 
+                                        max-width: 100%; 
+                                        max-height: 70vh; 
+                                        border-radius: 12px;
+                                        margin-bottom: 24px;
+                                    }
+                                    .instruction {
+                                        color: #fff;
+                                        text-align: center;
+                                        font-size: 17px;
+                                        line-height: 1.5;
+                                        margin-bottom: 8px;
+                                    }
+                                    .hint {
+                                        color: #8e8e93;
+                                        text-align: center;
+                                        font-size: 14px;
+                                    }
+                                </style>
+                            </head>
+                            <body>
+                                <img src="${dataUrl}" alt="Нажмите и удерживайте для сохранения">
+                                <div class="instruction">
+                                    📱 Удерживайте палец на фото<br>и выберите «Сохранить изображение»
+                                </div>
+                                <div class="hint">Или «Скачать изображение» в зависимости от браузера</div>
+                            </body>
+                            </html>
+                        `);
+                    }
+                }, 100);
+            } else {
+                // Для iOS и остальных: автоматическое скачивание
+                const filename = 'telegram-loading-' + Date.now() + '.png';
                 const link = document.createElement('a');
                 link.download = filename;
                 link.href = dataUrl;
@@ -636,51 +794,63 @@
                     document.body.removeChild(link);
                 }, 100);
                 showToast();
-            } catch (e) {
-                window.open(dataUrl, '_blank');
             }
         }
-        
-        
-        
+
+        // Закрытие модального окна
+        saveModalClose.addEventListener('click', () => {
+            saveModal.classList.remove('active');
+        });
+
+        // Закрытие по клику вне контента
+        saveModal.addEventListener('click', (e) => {
+            if (e.target === saveModal) {
+                saveModal.classList.remove('active');
+            }
+        });
+
         function drawTelegramSpinner(ctx, x, y, size, rotation) {
             ctx.save();
             ctx.translate(x, y);
-            
+
             const scale = size / 156;
-            
+
             // Серый фон круга
             ctx.beginPath();
             ctx.arc(0, 0, 78 * scale, 0, Math.PI * 2);
             ctx.fillStyle = '#6D6D6D';
             ctx.fill();
-        
+
             // Размытый оверлей (без filter для совместимости)
             if (currentBlur > 0) {
                 ctx.save();
                 ctx.beginPath();
                 ctx.arc(0, 0, 78 * scale, 0, Math.PI * 2);
                 ctx.clip();
-                
+
                 ctx.globalAlpha = 0.15;
-                
-                // Пробуем применить blur, если не получится — рисуем без него
-                try {
-                    ctx.filter = `blur(${currentBlur}px)`;
-                    ctx.drawImage(currentImage, -x, -y, currentImage.naturalWidth, currentImage.naturalHeight);
-                    ctx.filter = 'none';
-                } catch (e) {
-                    // Без blur если не поддерживается
-                    ctx.drawImage(currentImage, -x, -y, currentImage.naturalWidth, currentImage.naturalHeight);
-                }
-                
+
+                // Рисуем размытую версию фона внутри круга
+                // Создаем маленькую версию для эффекта размытия
+                const blurScale = Math.max(0.1, 1 - (currentBlur / 100));
+                const blurSize = 156 * scale * blurScale;
+                const offset = (156 * scale - blurSize) / 2;
+
+                ctx.drawImage(
+                    currentImage, 
+                    -x, -y, 
+                    currentImage.naturalWidth, currentImage.naturalHeight,
+                    -78 * scale, -78 * scale,
+                    156 * scale / blurScale, 156 * scale / blurScale
+                );
+
                 ctx.restore();
             }
-        
+
             // Белая дуга
             ctx.save();
             ctx.rotate((rotation * Math.PI) / 180);
-            
+
             ctx.beginPath();
             ctx.arc(0, 0, 63 * scale, 0, Math.PI * 0.33);
             ctx.strokeStyle = '#FFFFFF';
@@ -688,23 +858,23 @@
             ctx.lineCap = 'round';
             ctx.stroke();
             ctx.restore();
-        
+
             // Белый крест
             const halfCross = 23 * scale;
             ctx.strokeStyle = '#FFFFFF';
             ctx.lineWidth = 8 * scale;
             ctx.lineCap = 'round';
-            
+
             ctx.beginPath();
             ctx.moveTo(-halfCross, -halfCross);
             ctx.lineTo(halfCross, halfCross);
             ctx.stroke();
-            
+
             ctx.beginPath();
             ctx.moveTo(halfCross, -halfCross);
             ctx.lineTo(-halfCross, halfCross);
             ctx.stroke();
-        
+
             ctx.restore();
         }
 
