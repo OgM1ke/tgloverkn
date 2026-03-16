@@ -559,6 +559,43 @@
             exportImage();
         });
 
+        // Функция размытия для iOS через уменьшение/увеличение с повторением
+        function applyIOSBlur(canvas, ctx, width, height, radius) {
+            if (radius <= 0) return;
+            
+            // Чем больше радиус, тем сильнее уменьшение
+            const scale = Math.max(0.02, 1 / (1 + radius * 0.15));
+            const smallW = Math.max(2, Math.floor(width * scale));
+            const smallH = Math.max(2, Math.floor(height * scale));
+            
+            // Создаем маленький canvas
+            const small = document.createElement('canvas');
+            const smallCtx = small.getContext('2d');
+            small.width = smallW;
+            small.height = smallH;
+            
+            // Рисуем уменьшенное изображение
+            smallCtx.drawImage(canvas, 0, 0, width, height, 0, 0, smallW, smallH);
+            
+            // Очищаем и рисуем обратно увеличенным с плохим качеством = размытие
+            ctx.clearRect(0, 0, width, height);
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'low';
+            ctx.drawImage(small, 0, 0, smallW, smallH, 0, 0, width, height);
+            
+            // Для сильного размытия делаем несколько проходов
+            if (radius > 15) {
+                const passes = Math.min(3, Math.floor(radius / 10));
+                for (let i = 0; i < passes; i++) {
+                    const data = ctx.getImageData(0, 0, width, height);
+                    smallCtx.clearRect(0, 0, smallW, smallH);
+                    smallCtx.drawImage(canvas, 0, 0, width, height, 0, 0, smallW, smallH);
+                    ctx.clearRect(0, 0, width, height);
+                    ctx.drawImage(small, 0, 0, smallW, smallH, 0, 0, width, height);
+                }
+            }
+        }
+
         function exportImage() {
             const ctx = exportCanvas.getContext('2d');
             const width = currentImage.naturalWidth;
