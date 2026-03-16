@@ -162,7 +162,6 @@
             filter: blur(var(--blur, 0px));
         }
 
-        /* Контейнер для спиннера - строго по центру */
         .spinner-wrapper {
             position: absolute;
             inset: 0;
@@ -172,7 +171,6 @@
             pointer-events: none;
         }
 
-        /* Фиксированный размер спиннера 80px */
         .spinner-container {
             width: 80px;
             height: 80px;
@@ -180,7 +178,6 @@
             flex-shrink: 0;
         }
 
-        /* Серый фон круга */
         .spinner-bg {
             position: absolute;
             inset: 0;
@@ -189,7 +186,6 @@
             overflow: hidden;
         }
 
-        /* Размытый оверлей поверх серого круга (эффект жидкого стекла) */
         .spinner-glass {
             position: absolute;
             inset: 0;
@@ -209,7 +205,6 @@
             filter: blur(var(--blur, 0px));
         }
 
-        /* Белая дуга - вращается - ТОЛЬКО ОДНА ДУГА */
         .spinner-arc {
             position: absolute;
             inset: 0;
@@ -222,16 +217,14 @@
             animation: spin 1s linear infinite;
         }
 
-        /* Одна дуга: длина 22, пробел 200 (очень длинный) */
         .spinner-arc circle {
             fill: none;
             stroke: #FFFFFF;
-            stroke-width: 6.4; /* 10px в масштабе 156->80 */
+            stroke-width: 6.4;
             stroke-linecap: round;
-            stroke-dasharray: 22 200; /* 22 - длина дуги, 200 - пробел (без второй дуги) */
+            stroke-dasharray: 22 200;
         }
 
-        /* Белый крест - золотой стандарт */
         .spinner-cross {
             position: absolute;
             inset: 0;
@@ -247,7 +240,7 @@
 
         .spinner-cross line {
             stroke: #FFFFFF;
-            stroke-width: 4.1; /* 8px в масштабе */
+            stroke-width: 4.1;
             stroke-linecap: round;
         }
 
@@ -323,6 +316,49 @@
             opacity: 1;
         }
 
+        /* Модальное окно для сохранения в Telegram WebView */
+        .save-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 2000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .save-modal.active {
+            display: flex;
+        }
+
+        .save-modal img {
+            max-width: 100%;
+            max-height: 70vh;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .save-modal-text {
+            color: #fff;
+            text-align: center;
+            font-size: 17px;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+
+        .save-modal-btn {
+            background: #0a84ff;
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
         @media (max-width: 480px) {
             body {
                 padding: 20px 16px;
@@ -356,8 +392,6 @@
             }
         }
     </style>
-<base target="_blank">
-<base target="_blank">
 </head>
 <body>
     <h1>Telegram Glass Loading</h1>
@@ -390,22 +424,15 @@
 
             <div class="spinner-wrapper">
                 <div class="spinner-container">
-                    <!-- Серый фон -->
                     <div class="spinner-bg"></div>
-
-                    <!-- Размытый оверлей (жидкое стекло) -->
                     <div class="spinner-glass" id="spinnerGlass">
                         <img class="spinner-glass-img" id="spinnerGlassImg" alt="">
                     </div>
-
-                    <!-- Белая дуга (вращается) - ТОЛЬКО ОДНА -->
                     <div class="spinner-arc" id="spinnerArc">
                         <svg viewBox="0 0 100 100">
                             <circle cx="50" cy="50" r="38"/>
                         </svg>
                     </div>
-
-                    <!-- Белый крест - золотой стандарт -->
                     <div class="spinner-cross">
                         <svg viewBox="0 0 51 51">
                             <line x1="15" y1="15" x2="36" y2="36"/>
@@ -425,6 +452,17 @@
     <canvas id="exportCanvas"></canvas>
     <div class="toast" id="toast">Фото сохранено!</div>
 
+    <!-- Модальное окно для сохранения в Telegram WebView -->
+    <div class="save-modal" id="saveModal">
+        <img id="saveModalImg" src="" alt="Нажмите и удерживайте для сохранения">
+        <div class="save-modal-text">
+            📱 <b>Удерживайте палец на фото</b><br>
+            и выберите «Сохранить изображение»<br><br>
+            <small style="color: #8e8e93;">Если не работает — откройте в браузере (⋮ → Открыть в браузере)</small>
+        </div>
+        <button class="save-modal-btn" onclick="closeSaveModal()">Готово</button>
+    </div>
+
     <script>
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
@@ -440,16 +478,18 @@
         const downloadBtn = document.getElementById('downloadBtn');
         const exportCanvas = document.getElementById('exportCanvas');
         const toast = document.getElementById('toast');
+        const saveModal = document.getElementById('saveModal');
+        const saveModalImg = document.getElementById('saveModalImg');
 
         let currentImage = null;
         let currentBlur = 0;
         let isProcessing = false;
 
-        // Определяем устройство
+        // Определяем устройство и окружение
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         const isAndroid = /Android/.test(navigator.userAgent);
+        const isTelegramWebView = /Telegram/i.test(navigator.userAgent) || window.TelegramWebview !== undefined;
 
-        // Загрузка файла
         uploadArea.addEventListener('click', (e) => {
             if (e.target !== fileInput) {
                 fileInput.click();
@@ -559,41 +599,29 @@
             exportImage();
         });
 
-        // Функция размытия для iOS через уменьшение/увеличение с повторением
+        function closeSaveModal() {
+            saveModal.classList.remove('active');
+        }
+
+        // Размытие для iOS через уменьшение/увеличение
         function applyIOSBlur(canvas, ctx, width, height, radius) {
             if (radius <= 0) return;
             
-            // Чем больше радиус, тем сильнее уменьшение
             const scale = Math.max(0.02, 1 / (1 + radius * 0.15));
             const smallW = Math.max(2, Math.floor(width * scale));
             const smallH = Math.max(2, Math.floor(height * scale));
             
-            // Создаем маленький canvas
             const small = document.createElement('canvas');
             const smallCtx = small.getContext('2d');
             small.width = smallW;
             small.height = smallH;
             
-            // Рисуем уменьшенное изображение
             smallCtx.drawImage(canvas, 0, 0, width, height, 0, 0, smallW, smallH);
             
-            // Очищаем и рисуем обратно увеличенным с плохим качеством = размытие
             ctx.clearRect(0, 0, width, height);
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'low';
             ctx.drawImage(small, 0, 0, smallW, smallH, 0, 0, width, height);
-            
-            // Для сильного размытия делаем несколько проходов
-            if (radius > 15) {
-                const passes = Math.min(3, Math.floor(radius / 10));
-                for (let i = 0; i < passes; i++) {
-                    const data = ctx.getImageData(0, 0, width, height);
-                    smallCtx.clearRect(0, 0, smallW, smallH);
-                    smallCtx.drawImage(canvas, 0, 0, width, height, 0, 0, smallW, smallH);
-                    ctx.clearRect(0, 0, width, height);
-                    ctx.drawImage(small, 0, 0, smallW, smallH, 0, 0, width, height);
-                }
-            }
         }
 
         function exportImage() {
@@ -601,67 +629,58 @@
             const width = currentImage.naturalWidth;
             const height = currentImage.naturalHeight;
 
-            // Создаем временный canvas для размытия без прозрачности
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-
-            const padding = Math.ceil(currentBlur * 3);
-            tempCanvas.width = width + padding * 2;
-            tempCanvas.height = height + padding * 2;
-
-            tempCtx.drawImage(currentImage, padding, padding, width, height);
-
-            // Заполняем края
-            tempCtx.drawImage(currentImage, 0, 0, 1, height, 0, padding, padding, height);
-            tempCtx.drawImage(currentImage, width-1, 0, 1, height, width+padding, padding, padding, height);
-            tempCtx.drawImage(currentImage, 0, 0, width, 1, padding, 0, width, padding);
-            tempCtx.drawImage(currentImage, 0, height-1, width, 1, padding, height+padding, width, padding);
-
-            // Для iOS используем downscale/upscale вместо filter
-            if (isIOS && currentBlur > 0) {
-                const blurAmount = currentBlur / 100;
-                const smallWidth = Math.max(1, Math.floor(width * (1 - blurAmount)));
-                const smallHeight = Math.max(1, Math.floor(height * (1 - blurAmount)));
-
-                const blurCanvas = document.createElement('canvas');
-                const blurCtx = blurCanvas.getContext('2d');
-                blurCanvas.width = smallWidth;
-                blurCanvas.height = smallHeight;
-
-                blurCtx.drawImage(tempCanvas, 0, 0, tempCanvas.width, tempCanvas.height, 0, 0, smallWidth, smallHeight);
-
-                tempCtx.imageSmoothingEnabled = true;
-                tempCtx.imageSmoothingQuality = 'high';
-                tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-                tempCtx.drawImage(blurCanvas, 0, 0, smallWidth, smallHeight, 0, 0, tempCanvas.width, tempCanvas.height);
-            } else {
-                tempCtx.filter = `blur(${currentBlur}px)`;
-                tempCtx.drawImage(tempCanvas, 0, 0);
-                tempCtx.filter = 'none';
-            }
-
             exportCanvas.width = width;
             exportCanvas.height = height;
 
-            ctx.drawImage(tempCanvas, padding, padding, width, height, 0, 0, width, height);
+            // Рисуем изображение
+            ctx.drawImage(currentImage, 0, 0, width, height);
 
-            // Рисуем спиннер в центре
+            // Применяем размытие
+            if (currentBlur > 0) {
+                if (isIOS) {
+                    applyIOSBlur(exportCanvas, ctx, width, height, currentBlur);
+                } else {
+                    const tempCanvas = document.createElement('canvas');
+                    const tempCtx = tempCanvas.getContext('2d');
+                    
+                    const padding = Math.ceil(currentBlur * 3);
+                    tempCanvas.width = width + padding * 2;
+                    tempCanvas.height = height + padding * 2;
+
+                    tempCtx.drawImage(currentImage, padding, padding, width, height);
+                    tempCtx.drawImage(currentImage, 0, 0, 1, height, 0, padding, padding, height);
+                    tempCtx.drawImage(currentImage, width-1, 0, 1, height, width+padding, padding, padding, height);
+                    tempCtx.drawImage(currentImage, 0, 0, width, 1, padding, 0, width, padding);
+                    tempCtx.drawImage(currentImage, 0, height-1, width, 1, padding, height+padding, width, padding);
+
+                    tempCtx.filter = `blur(${currentBlur}px)`;
+                    tempCtx.drawImage(tempCanvas, 0, 0);
+                    tempCtx.filter = 'none';
+
+                    ctx.clearRect(0, 0, width, height);
+                    ctx.drawImage(tempCanvas, padding, padding, width, height, 0, 0, width, height);
+                }
+            }
+
+            // Рисуем спиннер
             const centerX = width / 2;
             const centerY = height / 2;
-
-            // Масштабируем золотой стандарт 156px к размеру изображения
             const previewWidth = previewContainer.offsetWidth;
             const scaleFactor = width / previewWidth;
             const spinnerSize = 80 * scaleFactor;
-
             const rotation = getCurrentRotation();
 
             drawTelegramSpinner(ctx, centerX, centerY, spinnerSize, rotation);
 
             const dataUrl = exportCanvas.toDataURL('image/png');
 
-            if (isAndroid) {
-                // Для Android: открываем в новом окне с инструкцией
+            // Android в Telegram WebView — показываем модальное окно с картинкой
+            if (isAndroid && isTelegramWebView) {
+                saveModalImg.src = dataUrl;
+                saveModal.classList.add('active');
+            } 
+            // Android в обычном браузере — открываем новое окно
+            else if (isAndroid) {
                 const newWindow = window.open();
                 if (newWindow) {
                     newWindow.document.write(`
@@ -712,10 +731,12 @@
                         </html>
                     `);
                 } else {
-                    window.location.href = dataUrl;
+                    // Fallback если popup заблокирован
+                    saveModalImg.src = dataUrl;
+                    saveModal.classList.add('active');
                 }
             } else {
-                // Для ПК и iOS: автоматическое скачивание
+                // ПК и iOS — автоматическое скачивание
                 const link = document.createElement('a');
                 link.download = 'telegram-loading-' + Date.now() + '.png';
                 link.href = dataUrl;
@@ -730,16 +751,13 @@
             ctx.save();
             ctx.translate(x, y);
 
-            // Масштаб от золотого стандарта 156px
             const scale = size / 156;
 
-            // Серый фон круга
             ctx.beginPath();
             ctx.arc(0, 0, 78 * scale, 0, Math.PI * 2);
             ctx.fillStyle = '#484848';
             ctx.fill();
 
-            // Размытый оверлей (жидкое стекло)
             if (currentBlur > 0) {
                 ctx.save();
                 ctx.beginPath();
@@ -749,24 +767,33 @@
                 ctx.globalAlpha = 0.35;
 
                 if (isIOS) {
-                    // Для iOS используем downscale для стекла тоже
-                    const blurAmount = currentBlur / 100;
                     const glassSize = Math.ceil(156 * scale);
-                    const smallSize = Math.max(1, Math.floor(glassSize * (1 - blurAmount)));
-
                     const glassCanvas = document.createElement('canvas');
                     const glassCtx = glassCanvas.getContext('2d');
-                    glassCanvas.width = smallSize;
-                    glassCanvas.height = smallSize;
+                    glassCanvas.width = glassSize;
+                    glassCanvas.height = glassSize;
 
                     const sourceX = (x - 78 * scale) * (currentImage.naturalWidth / exportCanvas.width);
                     const sourceY = (y - 78 * scale) * (currentImage.naturalHeight / exportCanvas.height);
                     const sourceSize = (156 * scale) * (currentImage.naturalWidth / exportCanvas.width);
 
-                    glassCtx.drawImage(currentImage, sourceX, sourceY, sourceSize, sourceSize, 0, 0, smallSize, smallSize);
+                    glassCtx.drawImage(currentImage, sourceX, sourceY, sourceSize, sourceSize, 0, 0, glassSize, glassSize);
+                    
+                    const glassScale = Math.max(0.02, 1 / (1 + currentBlur * 0.15));
+                    const smallGlassSize = Math.max(2, Math.floor(glassSize * glassScale));
+                    
+                    const smallGlass = document.createElement('canvas');
+                    const smallGlassCtx = smallGlass.getContext('2d');
+                    smallGlass.width = smallGlassSize;
+                    smallGlass.height = smallGlassSize;
+                    
+                    smallGlassCtx.drawImage(glassCanvas, 0, 0, glassSize, glassSize, 0, 0, smallGlassSize, smallGlassSize);
+                    
+                    glassCtx.clearRect(0, 0, glassSize, glassSize);
+                    glassCtx.imageSmoothingEnabled = true;
+                    glassCtx.imageSmoothingQuality = 'low';
+                    glassCtx.drawImage(smallGlass, 0, 0, smallGlassSize, smallGlassSize, 0, 0, glassSize, glassSize);
 
-                    ctx.imageSmoothingEnabled = true;
-                    ctx.imageSmoothingQuality = 'high';
                     ctx.drawImage(glassCanvas, -78 * scale, -78 * scale, 156 * scale, 156 * scale);
                 } else {
                     ctx.filter = `blur(${currentBlur}px)`;
@@ -776,10 +803,8 @@
                 ctx.restore();
             }
 
-            // Белая дуга
             ctx.save();
             ctx.rotate((rotation * Math.PI) / 180);
-
             ctx.beginPath();
             ctx.arc(0, 0, 63 * scale, 0, Math.PI * 0.33);
             ctx.strokeStyle = '#FFFFFF';
@@ -788,7 +813,6 @@
             ctx.stroke();
             ctx.restore();
 
-            // Белый крест
             const halfCross = 23 * scale;
             ctx.strokeStyle = '#FFFFFF';
             ctx.lineWidth = 8 * scale;
