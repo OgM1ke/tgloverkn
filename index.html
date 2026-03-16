@@ -358,6 +358,27 @@
             cursor: pointer;
         }
 
+        .loading {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            flex-direction: column;
+        }
+
+        .loading.active {
+            display: flex;
+        }
+
+        .loading-text {
+            color: #fff;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+
         @media (max-width: 480px) {
             body {
                 padding: 20px 16px;
@@ -451,6 +472,18 @@
     <canvas id="exportCanvas"></canvas>
     <div class="toast" id="toast">Фото сохранено!</div>
 
+    <div class="loading" id="loading">
+        <div class="spinner-container" style="position: relative;">
+            <div class="spinner-bg"></div>
+            <div class="spinner-arc">
+                <svg viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="38"/>
+                </svg>
+            </div>
+        </div>
+        <div class="loading-text">Обработка...</div>
+    </div>
+
     <div class="save-modal" id="saveModal">
         <img id="saveModalImg" src="" alt="Нажмите и удерживайте для сохранения">
         <div class="save-modal-text">
@@ -478,6 +511,7 @@
         const toast = document.getElementById('toast');
         const saveModal = document.getElementById('saveModal');
         const saveModalImg = document.getElementById('saveModalImg');
+        const loading = document.getElementById('loading');
 
         let currentImage = null;
         let currentBlur = 0;
@@ -600,48 +634,97 @@
             saveModal.classList.remove('active');
         }
 
-        // === РАЗМЫТИЕ ДЛЯ iOS ЧЕРЕЗ МНОГОКРАТНОЕ МАСШТАБИРОВАНИЕ С ПРОМЕЖУТОЧНЫМИ CANVAS ===
-        function applyIOSBlur(sourceCanvas, width, height, radius) {
-            if (radius <= 0) return sourceCanvas;
+        // === BOX BLUR ДЛЯ iOS — РУЧНОЕ УСРЕДНЕНИЕ ПИКСЕЛЕЙ ===
+        function applyBoxBlur(canvas, width, height, radius) {
+            if (radius <= 0) return canvas;
             
-            // Создаем цепочку canvas: source → temp1 → temp2 → result
-            let current = sourceCanvas;
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+            const output = new Uint8ClampedArray(data);
             
-            // Количество проходов — чем больше радиус, тем больше проходов
-            const passes = Math.max(2, Math.floor(radius / 3));
+            // Ограничиваем радиус для производительности
+            const r = Math.min(radius, 30);
+            const r2 = r * 2 + 1;
+            const area = r2 * r2;
             
-            for (let i = 0; i < passes; i++) {
-                const scale = Math.max(0.05, 0.25 - (i * 0.05)); // 0.25, 0.20, 0.15...
-                const smallW = Math.max(2, Math.floor(width * scale));
-                const smallH = Math.max(2, Math.floor(height * scale));
+            // Проходим по каждому пикселю
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    let rSum = 0, gSum = 0, bSum = 0, count = 0;
+                    
+                    // Суммируем соседей в квадрате
+                    for (let ky = -r; ky <= r; ky++) {
+                        const py = Math.min(height - 1, Math.max(0, y + ky));
+                        for (let kx = -r; kx <= r; kx++) {
+                            const px = Math.min(width - 1, Math.max(0, x + kx));
+                            const idx = (py * width + px) * 4;
+                            
+                            rSum += data[idx];
+                            gSum += data[idx + 1];
+                            bSum += data[idx + 2];
+                            count++;
+                        }
+                    }
+                    
+                    // Записываем среднее
+                    const i = (y * width + x) * 4;
+                    output[i] = rSum / count;
+                    output[i + 1] = gSum / count;
+                    output[i + 2] = bSum / count;
+                    // Alpha не меняем: output[i + 3] = data[i + 3];
+                }
+            }
+            
+            // Копируем результат обратно
+            for (let i = 0; i < data.length; i++) {
+                data[i] = output[i];
+            }
+            
+            ctx.putImageData(imageData, 0, 0);
+            return canvas;
+        }
+
+        // Упрощенный blur для больших изображений (быстрее)
+        function applyFastBlur(canvas, width, height, radius) {
+            if (radius <= 0) return canvas;
+            
+            // Для больших картинок — уменьшаем, размываем, увеличиваем
+            const maxSize = 800;
+            if (width > maxSize || height > maxSize) {
+                const scale = maxSize / Math.max(width, height);
+                const smallW = Math.floor(width * scale);
+                const smallH = Math.floor(height * scale);
                 
-                // Canvas для уменьшения
                 const small = document.createElement('canvas');
                 const smallCtx = small.getContext('2d');
                 small.width = smallW;
                 small.height = smallH;
+                smallCtx.drawImage(canvas, 0, 0, width, height, 0, 0, smallW, smallH);
                 
-                // Уменьшаем
-                smallCtx.drawImage(current, 0, 0, width, height, 0, 0, smallW, smallH);
+                // Размываем маленькую версию
+                applyBoxBlur(small, smallW, smallH, Math.max(1, radius * scale * 0.5));
                 
-                // Canvas для увеличения обратно
-                const large = document.createElement('canvas');
-                const largeCtx = large.getContext('2d');
-                large.width = width;
-                large.height = height;
+                // Увеличиваем обратно
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, width, height);
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'low';
+                ctx.drawImage(small, 0, 0, smallW, smallH, 0, 0, width, height);
                 
-                // Увеличиваем с размытием
-                largeCtx.imageSmoothingEnabled = true;
-                largeCtx.imageSmoothingQuality = 'low';
-                largeCtx.drawImage(small, 0, 0, smallW, smallH, 0, 0, width, height);
-                
-                current = large;
+                return canvas;
+            } else {
+                // Для маленьких — прямой box blur
+                return applyBoxBlur(canvas, width, height, radius);
             }
-            
-            return current;
         }
 
-        function exportImage() {
+        async function exportImage() {
+            loading.classList.add('active');
+            
+            // Даем UI обновиться
+            await new Promise(r => setTimeout(r, 50));
+            
             const ctx = exportCanvas.getContext('2d');
             const width = currentImage.naturalWidth;
             const height = currentImage.naturalHeight;
@@ -649,7 +732,7 @@
             exportCanvas.width = width;
             exportCanvas.height = height;
 
-            // 1. Создаем временный canvas с исходником
+            // 1. Рисуем исходник во временный canvas
             const tempCanvas = document.createElement('canvas');
             const tempCtx = tempCanvas.getContext('2d');
             tempCanvas.width = width;
@@ -657,12 +740,10 @@
             tempCtx.drawImage(currentImage, 0, 0, width, height);
             
             // 2. Применяем размытие
-            let processedCanvas = tempCanvas;
-            
             if (currentBlur > 0) {
                 if (isIOS) {
-                    // iOS: многопроходное размытие
-                    processedCanvas = applyIOSBlur(tempCanvas, width, height, currentBlur);
+                    // iOS: ручной box blur
+                    applyFastBlur(tempCanvas, width, height, currentBlur);
                 } else {
                     // ПК/Android: CSS filter
                     const blurCanvas = document.createElement('canvas');
@@ -687,8 +768,8 @@
                 }
             }
             
-            // 3. Рисуем результат в exportCanvas
-            ctx.drawImage(processedCanvas, 0, 0);
+            // 3. Копируем в exportCanvas
+            ctx.drawImage(tempCanvas, 0, 0);
 
             // Рисуем спиннер
             const centerX = width / 2;
@@ -701,6 +782,8 @@
             drawTelegramSpinner(ctx, centerX, centerY, spinnerSize, rotation);
 
             const dataUrl = exportCanvas.toDataURL('image/png');
+            
+            loading.classList.remove('active');
 
             if (isAndroid && isTelegramWebView) {
                 saveModalImg.src = dataUrl;
@@ -790,7 +873,7 @@
                 ctx.globalAlpha = 0.35;
 
                 if (isIOS) {
-                    // iOS: то же размытие для стекла
+                    // iOS: упрощенное стекло без сложного blur (чтобы не тормозило)
                     const glassSize = Math.ceil(156 * scale);
                     const glassCanvas = document.createElement('canvas');
                     const glassCtx = glassCanvas.getContext('2d');
@@ -803,8 +886,20 @@
 
                     glassCtx.drawImage(currentImage, sourceX, sourceY, sourceSize, sourceSize, 0, 0, glassSize, glassSize);
                     
-                    const blurredGlass = applyIOSBlur(glassCanvas, glassSize, glassSize, currentBlur);
-                    ctx.drawImage(blurredGlass, -78 * scale, -78 * scale, 156 * scale, 156 * scale);
+                    // Упрощенный blur для стекла — просто уменьшаем/увеличиваем
+                    const small = document.createElement('canvas');
+                    const smallCtx = small.getContext('2d');
+                    const s = Math.max(2, Math.floor(glassSize * 0.3));
+                    small.width = s;
+                    small.height = s;
+                    smallCtx.drawImage(glassCanvas, 0, 0, glassSize, glassSize, 0, 0, s, s);
+                    
+                    glassCtx.clearRect(0, 0, glassSize, glassSize);
+                    glassCtx.imageSmoothingEnabled = true;
+                    glassCtx.imageSmoothingQuality = 'low';
+                    glassCtx.drawImage(small, 0, 0, s, s, 0, 0, glassSize, glassSize);
+
+                    ctx.drawImage(glassCanvas, -78 * scale, -78 * scale, 156 * scale, 156 * scale);
                 } else {
                     ctx.filter = `blur(${currentBlur}px)`;
                     ctx.drawImage(currentImage, -x, -y, currentImage.naturalWidth, currentImage.naturalHeight);
