@@ -56,7 +56,7 @@
         }
 
         .upload-area:hover {
-            border-color: #0a84ff;
+            border-color: '#0a84ff';
             background: #2c2c2e;
         }
 
@@ -323,59 +323,6 @@
             opacity: 1;
         }
 
-        /* Модальное окно для сохранения на Android */
-        .save-modal {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.95);
-            z-index: 2000;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-
-        .save-modal.active {
-            display: flex;
-        }
-
-        .save-modal-content {
-            text-align: center;
-            max-width: 400px;
-        }
-
-        .save-modal img {
-            max-width: 100%;
-            max-height: 60vh;
-            border-radius: 12px;
-            margin-bottom: 24px;
-        }
-
-        .save-instruction {
-            color: #ffffff;
-            font-size: 17px;
-            line-height: 1.5;
-            margin-bottom: 16px;
-        }
-
-        .save-instruction-hint {
-            color: #8e8e93;
-            font-size: 14px;
-            margin-bottom: 24px;
-        }
-
-        .save-modal-close {
-            background: #0a84ff;
-            color: white;
-            border: none;
-            padding: 14px 32px;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
         @media (max-width: 480px) {
             body {
                 padding: 20px 16px;
@@ -474,20 +421,6 @@
         </div>
     </div>
 
-    <!-- Модальное окно для Android -->
-    <div class="save-modal" id="saveModal">
-        <div class="save-modal-content">
-            <img id="saveModalImg" src="" alt="Сохраните фото">
-            <div class="save-instruction">
-                📱 Удерживайте палец на фото<br>и выберите «Сохранить изображение»
-            </div>
-            <div class="save-instruction-hint">
-                Или нажмите кнопку ниже, чтобы поделиться
-            </div>
-            <button class="save-modal-close" id="saveModalClose">Готово</button>
-        </div>
-    </div>
-
     <canvas id="exportCanvas"></canvas>
     <div class="toast" id="toast">Фото сохранено!</div>
 
@@ -506,9 +439,6 @@
         const downloadBtn = document.getElementById('downloadBtn');
         const exportCanvas = document.getElementById('exportCanvas');
         const toast = document.getElementById('toast');
-        const saveModal = document.getElementById('saveModal');
-        const saveModalImg = document.getElementById('saveModalImg');
-        const saveModalClose = document.getElementById('saveModalClose');
 
         let currentImage = null;
         let currentBlur = 0;
@@ -628,221 +558,159 @@
             exportImage();
         });
 
-        // Функция размытия через масштабирование (работает везде включая iOS)
-        function applyBlurToCanvas(ctx, width, height, blurAmount) {
-            if (blurAmount <= 0) return;
-
-            // Получаем данные изображения
-            const imgData = ctx.getImageData(0, 0, width, height);
-
-            // Применяем простое box blur
-            const radius = Math.ceil(blurAmount / 2);
-            const data = imgData.data;
-            const width4 = width * 4;
-
-            // Создаем временный буфер
-            const tempData = new Uint8ClampedArray(data);
-
-            // Горизонтальный проход
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    let r = 0, g = 0, b = 0, count = 0;
-
-                    for (let k = -radius; k <= radius; k++) {
-                        const px = x + k;
-                        if (px >= 0 && px < width) {
-                            const idx = y * width4 + px * 4;
-                            r += tempData[idx];
-                            g += tempData[idx + 1];
-                            b += tempData[idx + 2];
-                            count++;
-                        }
-                    }
-
-                    const idx = y * width4 + x * 4;
-                    data[idx] = r / count;
-                    data[idx + 1] = g / count;
-                    data[idx + 2] = b / count;
-                }
-            }
-
-            // Вертикальный проход
-            tempData.set(data);
-            for (let x = 0; x < width; x++) {
-                for (let y = 0; y < height; y++) {
-                    let r = 0, g = 0, b = 0, count = 0;
-
-                    for (let k = -radius; k <= radius; k++) {
-                        const py = y + k;
-                        if (py >= 0 && py < height) {
-                            const idx = py * width4 + x * 4;
-                            r += tempData[idx];
-                            g += tempData[idx + 1];
-                            b += tempData[idx + 2];
-                            count++;
-                        }
-                    }
-
-                    const idx = y * width4 + x * 4;
-                    data[idx] = r / count;
-                    data[idx + 1] = g / count;
-                    data[idx + 2] = b / count;
-                }
-            }
-
-            ctx.putImageData(imgData, 0, 0);
-        }
-
         function exportImage() {
-            if (!currentImage) return;
-
-            const rotation = getCurrentRotation();
-
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
+            const ctx = exportCanvas.getContext('2d');
             const width = currentImage.naturalWidth;
             const height = currentImage.naturalHeight;
 
-            canvas.width = width;
-            canvas.height = height;
+            exportCanvas.width = width;
+            exportCanvas.height = height;
 
-            // Рисуем оригинальное изображение
-            ctx.drawImage(currentImage, 0, 0, width, height);
+            // Для iOS используем downscale/upscale вместо filter (не работает на iOS Safari)
+            if (isIOS && currentBlur > 0) {
+                const blurAmount = currentBlur / 100;
+                const smallWidth = Math.max(1, Math.floor(width * (1 - blurAmount)));
+                const smallHeight = Math.max(1, Math.floor(height * (1 - blurAmount)));
 
-            // Применяем размытие через алгоритм (работает на iOS!)
-            if (currentBlur > 0) {
-                applyBlurToCanvas(ctx, width, height, currentBlur);
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = smallWidth;
+                tempCanvas.height = smallHeight;
+
+                tempCtx.drawImage(currentImage, 0, 0, smallWidth, smallHeight);
+
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(tempCanvas, 0, 0, smallWidth, smallHeight, 0, 0, width, height);
+            } else {
+                // Для ПК и Android используем оригинальный метод с filter
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+
+                const padding = Math.ceil(currentBlur * 3);
+                tempCanvas.width = width + padding * 2;
+                tempCanvas.height = height + padding * 2;
+
+                tempCtx.drawImage(currentImage, padding, padding, width, height);
+
+                // Заполняем края
+                tempCtx.drawImage(currentImage, 0, 0, 1, height, 0, padding, padding, height);
+                tempCtx.drawImage(currentImage, width-1, 0, 1, height, width+padding, padding, padding, height);
+                tempCtx.drawImage(currentImage, 0, 0, width, 1, padding, 0, width, padding);
+                tempCtx.drawImage(currentImage, 0, height-1, width, 1, padding, height+padding, width, padding);
+
+                tempCtx.filter = `blur(${currentBlur}px)`;
+                tempCtx.drawImage(tempCanvas, 0, 0);
+                tempCtx.filter = 'none';
+
+                ctx.drawImage(tempCanvas, padding, padding, width, height, 0, 0, width, height);
             }
 
-            // Рисуем спиннер
+            // Рисуем спиннер в центре
             const centerX = width / 2;
             const centerY = height / 2;
-            const spinnerSize = Math.min(width, height) * 0.12;
+
+            // Масштабируем золотой стандарт 156px к размеру изображения
+            const previewWidth = previewContainer.offsetWidth;
+            const scaleFactor = width / previewWidth;
+            const spinnerSize = 80 * scaleFactor;
+
+            const rotation = getCurrentRotation();
 
             drawTelegramSpinner(ctx, centerX, centerY, spinnerSize, rotation);
 
-            const dataUrl = canvas.toDataURL('image/png');
+            const dataUrl = exportCanvas.toDataURL('image/png');
 
             if (isAndroid) {
-                // Для Android: показываем модальное окно с инструкцией
-                saveModalImg.src = dataUrl;
-                saveModal.classList.add('active');
-
-                // Также пробуем открыть в новой вкладке как fallback
-                setTimeout(() => {
-                    const newWindow = window.open();
-                    if (newWindow) {
-                        newWindow.document.write(`
-                            <!DOCTYPE html>
-                            <html>
-                            <head>
-                                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                                <title>Сохраните фото</title>
-                                <style>
-                                    * { margin: 0; padding: 0; box-sizing: border-box; }
-                                    body { 
-                                        background: #000; 
-                                        display: flex; 
-                                        flex-direction: column;
-                                        align-items: center; 
-                                        justify-content: center; 
-                                        min-height: 100vh;
-                                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                                        padding: 20px;
-                                    }
-                                    img { 
-                                        max-width: 100%; 
-                                        max-height: 70vh; 
-                                        border-radius: 12px;
-                                        margin-bottom: 24px;
-                                    }
-                                    .instruction {
-                                        color: #fff;
-                                        text-align: center;
-                                        font-size: 17px;
-                                        line-height: 1.5;
-                                        margin-bottom: 8px;
-                                    }
-                                    .hint {
-                                        color: #8e8e93;
-                                        text-align: center;
-                                        font-size: 14px;
-                                    }
-                                </style>
-                            </head>
-                            <body>
-                                <img src="${dataUrl}" alt="Нажмите и удерживайте для сохранения">
-                                <div class="instruction">
-                                    📱 Удерживайте палец на фото<br>и выберите «Сохранить изображение»
-                                </div>
-                                <div class="hint">Или «Скачать изображение» в зависимости от браузера</div>
-                            </body>
-                            </html>
-                        `);
-                    }
-                }, 100);
+                // Для Android: открываем в новом окне с инструкцией
+                const newWindow = window.open();
+                if (newWindow) {
+                    newWindow.document.write(`
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                            <title>Сохраните фото</title>
+                            <style>
+                                * { margin: 0; padding: 0; box-sizing: border-box; }
+                                body { 
+                                    background: #000; 
+                                    display: flex; 
+                                    flex-direction: column;
+                                    align-items: center; 
+                                    justify-content: center; 
+                                    min-height: 100vh;
+                                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                    padding: 20px;
+                                }
+                                img { 
+                                    max-width: 100%; 
+                                    max-height: 80vh; 
+                                    border-radius: 12px;
+                                    margin-bottom: 20px;
+                                }
+                                .instruction {
+                                    color: #fff;
+                                    text-align: center;
+                                    font-size: 17px;
+                                    line-height: 1.5;
+                                    margin-bottom: 8px;
+                                }
+                                .hint {
+                                    color: #8e8e93;
+                                    text-align: center;
+                                    font-size: 14px;
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <img src="${dataUrl}" alt="Нажмите и удерживайте для сохранения">
+                            <div class="instruction">
+                                📱 Удерживайте палец на фото<br>и выберите «Сохранить изображение»
+                            </div>
+                            <div class="hint">Или «Скачать изображение» в зависимости от браузера</div>
+                        </body>
+                        </html>
+                    `);
+                } else {
+                    window.location.href = dataUrl;
+                }
             } else {
-                // Для iOS и остальных: автоматическое скачивание
-                const filename = 'telegram-loading-' + Date.now() + '.png';
+                // Для ПК и iOS: автоматическое скачивание
                 const link = document.createElement('a');
-                link.download = filename;
+                link.download = 'telegram-loading-' + Date.now() + '.png';
                 link.href = dataUrl;
-                link.style.display = 'none';
                 document.body.appendChild(link);
                 link.click();
-                setTimeout(() => {
-                    document.body.removeChild(link);
-                }, 100);
+                document.body.removeChild(link);
                 showToast();
             }
         }
-
-        // Закрытие модального окна
-        saveModalClose.addEventListener('click', () => {
-            saveModal.classList.remove('active');
-        });
-
-        // Закрытие по клику вне контента
-        saveModal.addEventListener('click', (e) => {
-            if (e.target === saveModal) {
-                saveModal.classList.remove('active');
-            }
-        });
 
         function drawTelegramSpinner(ctx, x, y, size, rotation) {
             ctx.save();
             ctx.translate(x, y);
 
+            // Масштаб от золотого стандарта 156px
             const scale = size / 156;
 
             // Серый фон круга
             ctx.beginPath();
             ctx.arc(0, 0, 78 * scale, 0, Math.PI * 2);
-            ctx.fillStyle = '#6D6D6D';
+            ctx.fillStyle = '#484848';
             ctx.fill();
 
-            // Размытый оверлей (без filter для совместимости)
+            // Размытый оверлей (жидкое стекло)
             if (currentBlur > 0) {
                 ctx.save();
                 ctx.beginPath();
                 ctx.arc(0, 0, 78 * scale, 0, Math.PI * 2);
                 ctx.clip();
 
-                ctx.globalAlpha = 0.15;
+                ctx.globalAlpha = 0.35;
+                ctx.filter = `blur(${currentBlur}px)`;
 
-                // Рисуем размытую версию фона внутри круга
-                // Создаем маленькую версию для эффекта размытия
-                const blurScale = Math.max(0.1, 1 - (currentBlur / 100));
-                const blurSize = 156 * scale * blurScale;
-                const offset = (156 * scale - blurSize) / 2;
-
-                ctx.drawImage(
-                    currentImage, 
-                    -x, -y, 
-                    currentImage.naturalWidth, currentImage.naturalHeight,
-                    -78 * scale, -78 * scale,
-                    156 * scale / blurScale, 156 * scale / blurScale
-                );
+                ctx.drawImage(currentImage, -x, -y, currentImage.naturalWidth, currentImage.naturalHeight);
 
                 ctx.restore();
             }
