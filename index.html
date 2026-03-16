@@ -56,7 +56,7 @@
         }
 
         .upload-area:hover {
-            border-color: '#0a84ff';
+            border-color: #0a84ff;
             background: #2c2c2e;
         }
 
@@ -357,6 +357,7 @@
         }
     </style>
 <base target="_blank">
+<base target="_blank">
 </head>
 <body>
     <h1>Telegram Glass Loading</h1>
@@ -563,48 +564,49 @@
             const width = currentImage.naturalWidth;
             const height = currentImage.naturalHeight;
 
-            exportCanvas.width = width;
-            exportCanvas.height = height;
+            // Создаем временный canvas для размытия без прозрачности
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
 
-            // Для iOS используем downscale/upscale вместо filter (не работает на iOS Safari)
+            const padding = Math.ceil(currentBlur * 3);
+            tempCanvas.width = width + padding * 2;
+            tempCanvas.height = height + padding * 2;
+
+            tempCtx.drawImage(currentImage, padding, padding, width, height);
+
+            // Заполняем края
+            tempCtx.drawImage(currentImage, 0, 0, 1, height, 0, padding, padding, height);
+            tempCtx.drawImage(currentImage, width-1, 0, 1, height, width+padding, padding, padding, height);
+            tempCtx.drawImage(currentImage, 0, 0, width, 1, padding, 0, width, padding);
+            tempCtx.drawImage(currentImage, 0, height-1, width, 1, padding, height+padding, width, padding);
+
+            // Для iOS используем downscale/upscale вместо filter
             if (isIOS && currentBlur > 0) {
                 const blurAmount = currentBlur / 100;
                 const smallWidth = Math.max(1, Math.floor(width * (1 - blurAmount)));
                 const smallHeight = Math.max(1, Math.floor(height * (1 - blurAmount)));
 
-                const tempCanvas = document.createElement('canvas');
-                const tempCtx = tempCanvas.getContext('2d');
-                tempCanvas.width = smallWidth;
-                tempCanvas.height = smallHeight;
+                const blurCanvas = document.createElement('canvas');
+                const blurCtx = blurCanvas.getContext('2d');
+                blurCanvas.width = smallWidth;
+                blurCanvas.height = smallHeight;
 
-                tempCtx.drawImage(currentImage, 0, 0, smallWidth, smallHeight);
+                blurCtx.drawImage(tempCanvas, 0, 0, tempCanvas.width, tempCanvas.height, 0, 0, smallWidth, smallHeight);
 
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                ctx.drawImage(tempCanvas, 0, 0, smallWidth, smallHeight, 0, 0, width, height);
+                tempCtx.imageSmoothingEnabled = true;
+                tempCtx.imageSmoothingQuality = 'high';
+                tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+                tempCtx.drawImage(blurCanvas, 0, 0, smallWidth, smallHeight, 0, 0, tempCanvas.width, tempCanvas.height);
             } else {
-                // Для ПК и Android используем оригинальный метод с filter
-                const tempCanvas = document.createElement('canvas');
-                const tempCtx = tempCanvas.getContext('2d');
-
-                const padding = Math.ceil(currentBlur * 3);
-                tempCanvas.width = width + padding * 2;
-                tempCanvas.height = height + padding * 2;
-
-                tempCtx.drawImage(currentImage, padding, padding, width, height);
-
-                // Заполняем края
-                tempCtx.drawImage(currentImage, 0, 0, 1, height, 0, padding, padding, height);
-                tempCtx.drawImage(currentImage, width-1, 0, 1, height, width+padding, padding, padding, height);
-                tempCtx.drawImage(currentImage, 0, 0, width, 1, padding, 0, width, padding);
-                tempCtx.drawImage(currentImage, 0, height-1, width, 1, padding, height+padding, width, padding);
-
                 tempCtx.filter = `blur(${currentBlur}px)`;
                 tempCtx.drawImage(tempCanvas, 0, 0);
                 tempCtx.filter = 'none';
-
-                ctx.drawImage(tempCanvas, padding, padding, width, height, 0, 0, width, height);
             }
+
+            exportCanvas.width = width;
+            exportCanvas.height = height;
+
+            ctx.drawImage(tempCanvas, padding, padding, width, height, 0, 0, width, height);
 
             // Рисуем спиннер в центре
             const centerX = width / 2;
@@ -708,9 +710,31 @@
                 ctx.clip();
 
                 ctx.globalAlpha = 0.35;
-                ctx.filter = `blur(${currentBlur}px)`;
 
-                ctx.drawImage(currentImage, -x, -y, currentImage.naturalWidth, currentImage.naturalHeight);
+                if (isIOS) {
+                    // Для iOS используем downscale для стекла тоже
+                    const blurAmount = currentBlur / 100;
+                    const glassSize = Math.ceil(156 * scale);
+                    const smallSize = Math.max(1, Math.floor(glassSize * (1 - blurAmount)));
+
+                    const glassCanvas = document.createElement('canvas');
+                    const glassCtx = glassCanvas.getContext('2d');
+                    glassCanvas.width = smallSize;
+                    glassCanvas.height = smallSize;
+
+                    const sourceX = (x - 78 * scale) * (currentImage.naturalWidth / exportCanvas.width);
+                    const sourceY = (y - 78 * scale) * (currentImage.naturalHeight / exportCanvas.height);
+                    const sourceSize = (156 * scale) * (currentImage.naturalWidth / exportCanvas.width);
+
+                    glassCtx.drawImage(currentImage, sourceX, sourceY, sourceSize, sourceSize, 0, 0, smallSize, smallSize);
+
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(glassCanvas, -78 * scale, -78 * scale, 156 * scale, 156 * scale);
+                } else {
+                    ctx.filter = `blur(${currentBlur}px)`;
+                    ctx.drawImage(currentImage, -x, -y, currentImage.naturalWidth, currentImage.naturalHeight);
+                }
 
                 ctx.restore();
             }
