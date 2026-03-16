@@ -316,7 +316,6 @@
             opacity: 1;
         }
 
-        /* Модальное окно для сохранения в Telegram WebView */
         .save-modal {
             display: none;
             position: fixed;
@@ -452,7 +451,6 @@
     <canvas id="exportCanvas"></canvas>
     <div class="toast" id="toast">Фото сохранено!</div>
 
-    <!-- Модальное окно для сохранения в Telegram WebView -->
     <div class="save-modal" id="saveModal">
         <img id="saveModalImg" src="" alt="Нажмите и удерживайте для сохранения">
         <div class="save-modal-text">
@@ -485,7 +483,6 @@
         let currentBlur = 0;
         let isProcessing = false;
 
-        // Определяем устройство и окружение
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         const isAndroid = /Android/.test(navigator.userAgent);
         const isTelegramWebView = /Telegram/i.test(navigator.userAgent) || window.TelegramWebview !== undefined;
@@ -603,25 +600,35 @@
             saveModal.classList.remove('active');
         }
 
-        // Размытие для iOS через уменьшение/увеличение
-        function applyIOSBlur(canvas, ctx, width, height, radius) {
+        // ПРОВЕРЕННОЕ размытие для iOS — многократное уменьшение/увеличение
+        function applyIOSBlur(canvas, width, height, radius) {
             if (radius <= 0) return;
             
-            const scale = Math.max(0.02, 1 / (1 + radius * 0.15));
-            const smallW = Math.max(2, Math.floor(width * scale));
-            const smallH = Math.max(2, Math.floor(height * scale));
+            const ctx = canvas.getContext('2d');
             
-            const small = document.createElement('canvas');
-            const smallCtx = small.getContext('2d');
-            small.width = smallW;
-            small.height = smallH;
+            // Количество проходов зависит от силы размытия
+            const passes = Math.max(1, Math.floor(radius / 5));
             
-            smallCtx.drawImage(canvas, 0, 0, width, height, 0, 0, smallW, smallH);
-            
-            ctx.clearRect(0, 0, width, height);
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'low';
-            ctx.drawImage(small, 0, 0, smallW, smallH, 0, 0, width, height);
+            for (let pass = 0; pass < passes; pass++) {
+                // Коэффициент уменьшения для этого прохода
+                const scale = Math.max(0.1, 0.3 + (pass * 0.1));
+                const smallW = Math.max(2, Math.floor(width * scale));
+                const smallH = Math.max(2, Math.floor(height * scale));
+                
+                const small = document.createElement('canvas');
+                const smallCtx = small.getContext('2d');
+                small.width = smallW;
+                small.height = smallH;
+                
+                // Рисуем уменьшенное
+                smallCtx.drawImage(canvas, 0, 0, width, height, 0, 0, smallW, smallH);
+                
+                // Очищаем и рисуем обратно увеличенным
+                ctx.clearRect(0, 0, width, height);
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'low';
+                ctx.drawImage(small, 0, 0, smallW, smallH, 0, 0, width, height);
+            }
         }
 
         function exportImage() {
@@ -632,14 +639,16 @@
             exportCanvas.width = width;
             exportCanvas.height = height;
 
-            // Рисуем изображение
+            // Рисуем исходное изображение
             ctx.drawImage(currentImage, 0, 0, width, height);
 
-            // Применяем размытие
+            // ПРИМЕНЯЕМ РАЗМЫТИЕ НАПРЯМУЮ К EXPORTCANVAS
             if (currentBlur > 0) {
                 if (isIOS) {
-                    applyIOSBlur(exportCanvas, ctx, width, height, currentBlur);
+                    // iOS: многократное масштабирование
+                    applyIOSBlur(exportCanvas, width, height, currentBlur);
                 } else {
+                    // ПК/Android: CSS filter через временный canvas
                     const tempCanvas = document.createElement('canvas');
                     const tempCtx = tempCanvas.getContext('2d');
                     
@@ -648,6 +657,8 @@
                     tempCanvas.height = height + padding * 2;
 
                     tempCtx.drawImage(currentImage, padding, padding, width, height);
+                    
+                    // Заполняем края
                     tempCtx.drawImage(currentImage, 0, 0, 1, height, 0, padding, padding, height);
                     tempCtx.drawImage(currentImage, width-1, 0, 1, height, width+padding, padding, padding, height);
                     tempCtx.drawImage(currentImage, 0, 0, width, 1, padding, 0, width, padding);
@@ -674,13 +685,10 @@
 
             const dataUrl = exportCanvas.toDataURL('image/png');
 
-            // Android в Telegram WebView — показываем модальное окно с картинкой
             if (isAndroid && isTelegramWebView) {
                 saveModalImg.src = dataUrl;
                 saveModal.classList.add('active');
-            } 
-            // Android в обычном браузере — открываем новое окно
-            else if (isAndroid) {
+            } else if (isAndroid) {
                 const newWindow = window.open();
                 if (newWindow) {
                     newWindow.document.write(`
@@ -731,12 +739,10 @@
                         </html>
                     `);
                 } else {
-                    // Fallback если popup заблокирован
                     saveModalImg.src = dataUrl;
                     saveModal.classList.add('active');
                 }
             } else {
-                // ПК и iOS — автоматическое скачивание
                 const link = document.createElement('a');
                 link.download = 'telegram-loading-' + Date.now() + '.png';
                 link.href = dataUrl;
@@ -767,6 +773,7 @@
                 ctx.globalAlpha = 0.35;
 
                 if (isIOS) {
+                    // iOS: то же размытие для стекла
                     const glassSize = Math.ceil(156 * scale);
                     const glassCanvas = document.createElement('canvas');
                     const glassCtx = glassCanvas.getContext('2d');
@@ -779,20 +786,8 @@
 
                     glassCtx.drawImage(currentImage, sourceX, sourceY, sourceSize, sourceSize, 0, 0, glassSize, glassSize);
                     
-                    const glassScale = Math.max(0.02, 1 / (1 + currentBlur * 0.15));
-                    const smallGlassSize = Math.max(2, Math.floor(glassSize * glassScale));
-                    
-                    const smallGlass = document.createElement('canvas');
-                    const smallGlassCtx = smallGlass.getContext('2d');
-                    smallGlass.width = smallGlassSize;
-                    smallGlass.height = smallGlassSize;
-                    
-                    smallGlassCtx.drawImage(glassCanvas, 0, 0, glassSize, glassSize, 0, 0, smallGlassSize, smallGlassSize);
-                    
-                    glassCtx.clearRect(0, 0, glassSize, glassSize);
-                    glassCtx.imageSmoothingEnabled = true;
-                    glassCtx.imageSmoothingQuality = 'low';
-                    glassCtx.drawImage(smallGlass, 0, 0, smallGlassSize, smallGlassSize, 0, 0, glassSize, glassSize);
+                    // Применяем то же размытие к стеклу
+                    applyIOSBlur(glassCanvas, glassSize, glassSize, currentBlur);
 
                     ctx.drawImage(glassCanvas, -78 * scale, -78 * scale, 156 * scale, 156 * scale);
                 } else {
