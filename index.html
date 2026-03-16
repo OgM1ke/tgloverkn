@@ -541,30 +541,31 @@
             exportImage();
         });
 
-        // Простое размытие для iOS через downscale/upscale
-        function simpleBlurIOS(canvas, ctx, width, height, radius) {
+        // Функция размытия для iOS через уменьшение/увеличение
+        function applyIOSBlur(canvas, ctx, width, height, radius) {
             if (radius <= 0) return;
             
+            // Коэффициент уменьшения зависит от радиуса
+            const scale = Math.max(0.03, 1 / (1 + radius * 0.1));
+            const smallW = Math.max(1, Math.floor(width * scale));
+            const smallH = Math.max(1, Math.floor(height * scale));
+            
             // Создаем маленький canvas
-            const smallCanvas = document.createElement('canvas');
-            const smallCtx = smallCanvas.getContext('2d');
-            
-            // Чем больше радиус, тем меньше коэффициент
-            const scale = Math.max(0.05, 1 - (radius / 50));
-            const smallWidth = Math.max(1, Math.floor(width * scale));
-            const smallHeight = Math.max(1, Math.floor(height * scale));
-            
-            smallCanvas.width = smallWidth;
-            smallCanvas.height = smallHeight;
+            const small = document.createElement('canvas');
+            const smallCtx = small.getContext('2d');
+            small.width = smallW;
+            small.height = smallH;
             
             // Рисуем уменьшенное изображение
-            smallCtx.drawImage(canvas, 0, 0, width, height, 0, 0, smallWidth, smallHeight);
+            smallCtx.drawImage(canvas, 0, 0, width, height, 0, 0, smallW, smallH);
             
-            // Очищаем основной canvas и рисуем увеличенное размытое изображение
+            // Очищаем основной canvas
             ctx.clearRect(0, 0, width, height);
+            
+            // Включаем сглаживание и рисуем обратно увеличенным
             ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'low'; // 'low' дает более размытый результат
-            ctx.drawImage(smallCanvas, 0, 0, smallWidth, smallHeight, 0, 0, width, height);
+            ctx.imageSmoothingQuality = 'low'; // low дает больше размытия
+            ctx.drawImage(small, 0, 0, smallW, smallH, 0, 0, width, height);
         }
 
         function exportImage() {
@@ -575,48 +576,52 @@
             exportCanvas.width = width;
             exportCanvas.height = height;
 
-            // Рисуем изображение
+            // Рисуем исходное изображение
             ctx.drawImage(currentImage, 0, 0, width, height);
 
-            // Применяем размытие
+            // Применяем размытие если нужно
             if (currentBlur > 0) {
                 if (isIOS) {
-                    // Для iOS используем простое размытие через downscale
-                    simpleBlurIOS(exportCanvas, ctx, width, height, currentBlur);
+                    // Для iOS используем downscale/upscale метод
+                    applyIOSBlur(exportCanvas, ctx, width, height, currentBlur);
                 } else {
-                    // Для ПК и Android используем filter
+                    // Для ПК и Android используем CSS filter через временный canvas
                     const tempCanvas = document.createElement('canvas');
                     const tempCtx = tempCanvas.getContext('2d');
-
+                    
                     const padding = Math.ceil(currentBlur * 3);
                     tempCanvas.width = width + padding * 2;
                     tempCanvas.height = height + padding * 2;
 
+                    // Заполняем padding копиями краев
                     tempCtx.drawImage(currentImage, padding, padding, width, height);
-
-                    // Заполняем края
+                    
+                    // Левый край
                     tempCtx.drawImage(currentImage, 0, 0, 1, height, 0, padding, padding, height);
+                    // Правый край  
                     tempCtx.drawImage(currentImage, width-1, 0, 1, height, width+padding, padding, padding, height);
+                    // Верхний край
                     tempCtx.drawImage(currentImage, 0, 0, width, 1, padding, 0, width, padding);
+                    // Нижний край
                     tempCtx.drawImage(currentImage, 0, height-1, width, 1, padding, height+padding, width, padding);
 
+                    // Применяем размытие
                     tempCtx.filter = `blur(${currentBlur}px)`;
                     tempCtx.drawImage(tempCanvas, 0, 0);
                     tempCtx.filter = 'none';
 
+                    // Копируем результат обратно
                     ctx.clearRect(0, 0, width, height);
                     ctx.drawImage(tempCanvas, padding, padding, width, height, 0, 0, width, height);
                 }
             }
 
-            // Рисуем спиннер в центре
+            // Рисуем спиннер
             const centerX = width / 2;
             const centerY = height / 2;
-
             const previewWidth = previewContainer.offsetWidth;
             const scaleFactor = width / previewWidth;
             const spinnerSize = 80 * scaleFactor;
-
             const rotation = getCurrentRotation();
 
             drawTelegramSpinner(ctx, centerX, centerY, spinnerSize, rotation);
@@ -724,8 +729,21 @@
 
                     glassCtx.drawImage(currentImage, sourceX, sourceY, sourceSize, sourceSize, 0, 0, glassSize, glassSize);
                     
-                    // Применяем простое размытие к стеклу
-                    simpleBlurIOS(glassCanvas, glassCtx, glassSize, glassSize, currentBlur);
+                    // Применяем размытие к стеклу
+                    const glassScale = Math.max(0.03, 1 / (1 + currentBlur * 0.1));
+                    const smallGlassSize = Math.max(1, Math.floor(glassSize * glassScale));
+                    
+                    const smallGlass = document.createElement('canvas');
+                    const smallGlassCtx = smallGlass.getContext('2d');
+                    smallGlass.width = smallGlassSize;
+                    smallGlass.height = smallGlassSize;
+                    
+                    smallGlassCtx.drawImage(glassCanvas, 0, 0, glassSize, glassSize, 0, 0, smallGlassSize, smallGlassSize);
+                    
+                    glassCtx.clearRect(0, 0, glassSize, glassSize);
+                    glassCtx.imageSmoothingEnabled = true;
+                    glassCtx.imageSmoothingQuality = 'low';
+                    glassCtx.drawImage(smallGlass, 0, 0, smallGlassSize, smallGlassSize, 0, 0, glassSize, glassSize);
 
                     ctx.drawImage(glassCanvas, -78 * scale, -78 * scale, 156 * scale, 156 * scale);
                 } else {
