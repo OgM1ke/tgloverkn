@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Glass Loading</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            background: #000000;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            color: #ffffff;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            color: #8e8e93;
+            font-size: 15px;
+            margin-bottom: 30px;
+        }
+
+        .container {
+            background: #1c1c1e;
+            border-radius: 20px;
+            padding: 30px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .upload-area {
+            border: 2px dashed #3a3a3c;
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area:hover {
+            border-color: #0a84ff;
+            background: #2c2c2e;
+        }
+
+        .upload-area input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .upload-icon {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 12px;
+            color: #8e8e93;
+        }
+
+        .upload-text {
+            font-size: 15px;
+            color: #ffffff;
+            font-weight: 500;
+        }
+
+        .upload-hint {
+            font-size: 13px;
+            color: #8e8e93;
+            margin-top: 4px;
+        }
+
+        .controls {
+            margin-bottom: 24px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #ffffff;
+        }
+
+        .value-badge {
+            background: #3a3a3c;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 13px;
+            color: #0a84ff;
+            font-weight: 600;
+            min-width: 45px;
+            text-align: center;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: #3a3a3c;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #0a84ff;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(10,132,255,0.3);
+            transition: transform 0.1s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+
+        .preview-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16/10;
+            background: #2c2c2e;
+            border-radius: 12px;
+            overflow: hidden;
+            display: none;
+            margin-bottom: 20px;
+        }
+
+        .preview-container.active {
+            display: block;
+        }
+
+        .preview-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: blur(var(--blur, 0px));
+        }
+
+        /* Контейнер для спиннера - строго по центру */
+        .spinner-wrapper {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+
+        /* Фиксированный размер спиннера 80px */
+        .spinner-container {
+            width: 80px;
+            height: 80px;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        /* Серый фон круга */
+        .spinner-bg {
+            position: absolute;
+            inset: 0;
+            background: #484848;
+            border-radius: 50%;
+            overflow: hidden;
+        }
+
+        /* Размытый оверлей поверх серого круга (эффект жидкого стекла) */
+        .spinner-glass {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            opacity: 0.15;
+            overflow: hidden;
+        }
+
+        .spinner-glass-img {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: var(--container-width, 100vw);
+            height: var(--container-height, 100vh);
+            object-fit: cover;
+            filter: blur(var(--blur, 0px));
+        }
+
+        /* Белая дуга - вращается - ТОЛЬКО ОДНА ДУГА */
+        .spinner-arc {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+        }
+
+        .spinner-arc svg {
+            width: 100%;
+            height: 100%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Одна дуга: длина 22, пробел 200 (очень длинный) */
+        .spinner-arc circle {
+            fill: none;
+            stroke: #FFFFFF;
+            stroke-width: 6.4; /* 10px в масштабе 156->80 */
+            stroke-linecap: round;
+            stroke-dasharray: 22 200; /* 22 - длина дуги, 200 - пробел (без второй дуги) */
+        }
+
+        /* Белый крест - золотой стандарт */
+        .spinner-cross {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .spinner-cross svg {
+            width: 51px;
+            height: 51px;
+        }
+
+        .spinner-cross line {
+            stroke: #FFFFFF;
+            stroke-width: 4.1; /* 8px в масштабе */
+            stroke-linecap: round;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px 24px;
+            border-radius: 12px;
+            border: none;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: #0a84ff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0a84ff;
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: #3a3a3c;
+            color: #ffffff;
+        }
+
+        .btn-secondary:hover {
+            background: #4a4a4c;
+        }
+
+        #exportCanvas {
+            display: none;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(255,255,255,0.9);
+            color: #000;
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 20px 16px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .container {
+                padding: 20px;
+            }
+
+            .spinner-container {
+                width: 60px;
+                height: 60px;
+            }
+
+            .spinner-cross svg {
+                width: 38px;
+                height: 38px;
+            }
+
+            .spinner-cross line {
+                stroke-width: 3;
+            }
+
+            .spinner-arc circle {
+                stroke-width: 4.8;
+                stroke-dasharray: 16 200;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Telegram Glass Loading</h1>
+    <p class="subtitle">Создайте эффект загрузки как в Telegram</p>
+
+    <div class="container">
+        <div class="upload-area" id="uploadArea">
+            <input type="file" id="fileInput" accept="image/*">
+            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <div class="upload-text">Загрузить фото</div>
+            <div class="upload-hint">Нажмите или перетащите изображение</div>
+        </div>
+
+        <div class="controls" id="controls" style="display: none;">
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Степень размытия</span>
+                    <span class="value-badge" id="blurValue">0px</span>
+                </div>
+                <input type="range" id="blurSlider" min="0" max="30" value="0" step="0.5">
+            </div>
+        </div>
+
+        <div class="preview-container" id="previewContainer">
+            <img class="preview-image" id="previewImage" alt="Preview">
+            
+            <div class="spinner-wrapper">
+                <div class="spinner-container">
+                    <!-- Серый фон -->
+                    <div class="spinner-bg"></div>
+                    
+                    <!-- Размытый оверлей (жидкое стекло) -->
+                    <div class="spinner-glass" id="spinnerGlass">
+                        <img class="spinner-glass-img" id="spinnerGlassImg" alt="">
+                    </div>
+                    
+                    <!-- Белая дуга (вращается) - ТОЛЬКО ОДНА -->
+                    <div class="spinner-arc" id="spinnerArc">
+                        <svg viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="38"/>
+                        </svg>
+                    </div>
+                    
+                    <!-- Белый крест - золотой стандарт -->
+                    <div class="spinner-cross">
+                        <svg viewBox="0 0 51 51">
+                            <line x1="15" y1="15" x2="36" y2="36"/>
+                            <line x1="36" y1="15" x2="15" y2="36"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="actions" id="actions" style="display: none;">
+            <button class="btn btn-secondary" id="newPhotoBtn">Новое фото</button>
+            <button class="btn btn-primary" id="downloadBtn">Сохранить фото</button>
+        </div>
+    </div>
+
+    <canvas id="exportCanvas"></canvas>
+    <div class="toast" id="toast">Фото сохранено!</div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const controls = document.getElementById('controls');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewImage = document.getElementById('previewImage');
+        const spinnerGlassImg = document.getElementById('spinnerGlassImg');
+        const spinnerArc = document.getElementById('spinnerArc');
+        const blurSlider = document.getElementById('blurSlider');
+        const blurValue = document.getElementById('blurValue');
+        const actions = document.getElementById('actions');
+        const newPhotoBtn = document.getElementById('newPhotoBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const exportCanvas = document.getElementById('exportCanvas');
+        const toast = document.getElementById('toast');
+
+        let currentImage = null;
+        let currentBlur = 0;
+        let isProcessing = false;
+
+        // Загрузка файла
+        uploadArea.addEventListener('click', (e) => {
+            if (e.target !== fileInput) {
+                fileInput.click();
+            }
+        });
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.style.borderColor = '#0a84ff';
+        });
+
+        uploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.style.borderColor = '#3a3a3c';
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.style.borderColor = '#3a3a3c';
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleFile(file);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            e.stopPropagation();
+            const file = e.target.files[0];
+            if (file && !isProcessing) {
+                isProcessing = true;
+                handleFile(file);
+                setTimeout(() => {
+                    isProcessing = false;
+                }, 100);
+            }
+        });
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                currentImage = new Image();
+                currentImage.onload = () => {
+                    previewImage.src = e.target.result;
+                    spinnerGlassImg.src = e.target.result;
+                    previewContainer.classList.add('active');
+                    controls.style.display = 'block';
+                    actions.style.display = 'flex';
+                    uploadArea.style.display = 'none';
+                    
+                    updateContainerSize();
+                    
+                    blurSlider.value = 10;
+                    updateBlur(10);
+                };
+                currentImage.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function updateContainerSize() {
+            const rect = previewContainer.getBoundingClientRect();
+            previewContainer.style.setProperty('--container-width', rect.width + 'px');
+            previewContainer.style.setProperty('--container-height', rect.height + 'px');
+        }
+
+        window.addEventListener('resize', updateContainerSize);
+
+        blurSlider.addEventListener('input', (e) => {
+            updateBlur(parseFloat(e.target.value));
+        });
+
+        function updateBlur(value) {
+            currentBlur = value;
+            blurValue.textContent = value + 'px';
+            previewContainer.style.setProperty('--blur', value + 'px');
+        }
+
+        newPhotoBtn.addEventListener('click', () => {
+            currentImage = null;
+            currentBlur = 0;
+            
+            previewImage.src = '';
+            spinnerGlassImg.src = '';
+            fileInput.value = '';
+            
+            previewContainer.classList.remove('active');
+            controls.style.display = 'none';
+            actions.style.display = 'none';
+            uploadArea.style.display = 'block';
+            
+            blurSlider.value = 0;
+            blurValue.textContent = '0px';
+        });
+
+        function getCurrentRotation() {
+            const svg = spinnerArc.querySelector('svg');
+            const style = window.getComputedStyle(svg);
+            const matrix = new DOMMatrix(style.transform);
+            return Math.atan2(matrix.b, matrix.a) * (180 / Math.PI);
+        }
+
+        downloadBtn.addEventListener('click', () => {
+            if (!currentImage) return;
+            exportImage();
+        });
+
+        function exportImage() {
+            const ctx = exportCanvas.getContext('2d');
+            const width = currentImage.naturalWidth;
+            const height = currentImage.naturalHeight;
+            
+            // Создаем временный canvas для размытия без прозрачности
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            const padding = Math.ceil(currentBlur * 3);
+            tempCanvas.width = width + padding * 2;
+            tempCanvas.height = height + padding * 2;
+            
+            tempCtx.drawImage(currentImage, padding, padding, width, height);
+            
+            // Заполняем края
+            tempCtx.drawImage(currentImage, 0, 0, 1, height, 0, padding, padding, height);
+            tempCtx.drawImage(currentImage, width-1, 0, 1, height, width+padding, padding, padding, height);
+            tempCtx.drawImage(currentImage, 0, 0, width, 1, padding, 0, width, padding);
+            tempCtx.drawImage(currentImage, 0, height-1, width, 1, padding, height+padding, width, padding);
+            
+            tempCtx.filter = `blur(${currentBlur}px)`;
+            tempCtx.drawImage(tempCanvas, 0, 0);
+            tempCtx.filter = 'none';
+            
+            exportCanvas.width = width;
+            exportCanvas.height = height;
+            
+            ctx.drawImage(tempCanvas, padding, padding, width, height, 0, 0, width, height);
+
+            // Рисуем спиннер в центре
+            const centerX = width / 2;
+            const centerY = height / 2;
+            
+            // Масштабируем золотой стандарт 156px к размеру изображения
+            // Используем ту же логику что и в CSS: 80px спиннер относительно ширины превью
+            const previewWidth = previewContainer.offsetWidth;
+            const scaleFactor = width / previewWidth;
+            const spinnerSize = 80 * scaleFactor;
+
+            const rotation = getCurrentRotation();
+
+            drawTelegramSpinner(ctx, centerX, centerY, spinnerSize, rotation);
+
+            const link = document.createElement('a');
+            link.download = 'telegram-loading-' + Date.now() + '.png';
+            link.href = exportCanvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast();
+        }
+
+        function drawTelegramSpinner(ctx, x, y, size, rotation) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Масштаб от золотого стандарта 156px
+            const scale = size / 156;
+            
+            // Серый фон круга
+            ctx.beginPath();
+            ctx.arc(0, 0, 78 * scale, 0, Math.PI * 2);
+            ctx.fillStyle = '#484848';
+            ctx.fill();
+
+            // Размытый оверлей (жидкое стекло)
+            if (currentBlur > 0) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(0, 0, 78 * scale, 0, Math.PI * 2);
+                ctx.clip();
+                
+                ctx.globalAlpha = 0.35;
+                ctx.filter = `blur(${currentBlur}px)`;
+                
+                ctx.drawImage(currentImage, -x, -y, currentImage.naturalWidth, currentImage.naturalHeight);
+                
+                ctx.restore();
+            }
+
+            // Белая дуга
+            ctx.save();
+            ctx.rotate((rotation * Math.PI) / 180);
+            
+            ctx.beginPath();
+            // Золотой стандарт: радиус 63px (156/2 - 15), дуга ~60 градусов
+            ctx.arc(0, 0, 63 * scale, 0, Math.PI * 0.33);
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 10 * scale; // Точно 10px в масштабе
+            ctx.lineCap = 'round';
+            ctx.stroke();
+            ctx.restore();
+
+            // Белый крест
+            // Золотой стандарт: от центра 23px (половина 46px видимой части ~70px)
+            const halfCross = 23 * scale;
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 8 * scale; // Точно 8px в масштабе
+            ctx.lineCap = 'round';
+            
+            ctx.beginPath();
+            ctx.moveTo(-halfCross, -halfCross);
+            ctx.lineTo(halfCross, halfCross);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(halfCross, -halfCross);
+            ctx.lineTo(-halfCross, halfCross);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function showToast() {
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
