@@ -37,10 +37,17 @@
             overflow: hidden;
         }
         .upload-area:active { border-color: #0a84ff; background: #2c2c2e; }
-        .upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-        .upload-icon { width: 48px; height: 48px; margin-bottom: 12px; color: #8e8e93; }
-        .upload-text { font-size: 15px; color: #ffffff; font-weight: 500; }
-        .upload-hint { font-size: 13px; color: #8e8e93; margin-top: 4px; }
+        .upload-area input[type="file"] { 
+            position: absolute; 
+            inset: 0; 
+            opacity: 0; 
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+        .upload-icon { width: 48px; height: 48px; margin-bottom: 12px; color: #8e8e93; pointer-events: none; }
+        .upload-text { font-size: 15px; color: #ffffff; font-weight: 500; pointer-events: none; }
+        .upload-hint { font-size: 13px; color: #8e8e93; margin-top: 4px; pointer-events: none; }
         .controls { margin-bottom: 24px; display: none; }
         .control-group { margin-bottom: 20px; }
         .control-label {
@@ -175,7 +182,8 @@
     <p class="subtitle">iOS Version</p>
     <div class="container">
         <div class="upload-area" id="uploadArea">
-            <input type="file" id="fileInput" accept="image/*" capture="environment">
+            <!-- УБРАН capture="environment" -->
+            <input type="file" id="fileInput" accept="image/*">
             <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="17 8 12 3 7 8"></polyline>
@@ -236,7 +244,7 @@
     </div>
 
     <script>
-        // WebGL Gaussian Blur — ИСПРАВЛЕННЫЙ (не переворачивает)
+        // WebGL Gaussian Blur
         const WebGLBlur = {
             gl: null,
             program: null,
@@ -308,16 +316,14 @@
                 gl.canvas.width = w; 
                 gl.canvas.height = h;
                 
-                // Текстура
                 const tex = gl.createTexture();
                 gl.bindTexture(gl.TEXTURE_2D, tex);
-                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); // ИСПРАВЛЕНИЕ: переворачиваем Y при загрузке
+                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
                 
-                // Буферы вершин (исправлены UV-координаты, чтобы не переворачивать)
                 const posBuf = gl.createBuffer();
                 gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
                 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
@@ -328,7 +334,6 @@
                 gl.enableVertexAttribArray(posLoc);
                 gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
                 
-                // UV-координаты: Y=0 внизу для WebGL, но мы инвертируем в шейдере или буфере
                 const texBuf = gl.createBuffer();
                 gl.bindBuffer(gl.ARRAY_BUFFER, texBuf);
                 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
@@ -339,7 +344,6 @@
                 gl.enableVertexAttribArray(texLoc);
                 gl.vertexAttribPointer(texLoc, 2, gl.FLOAT, false, 0, 0);
                 
-                // FBO для двухпроходного размытия
                 const fb = gl.createFramebuffer();
                 const tex2 = gl.createTexture();
                 gl.bindTexture(gl.TEXTURE_2D, tex2);
@@ -348,7 +352,6 @@
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
                 
-                // Первый проход (горизонтальный)
                 gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
                 gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex2, 0);
                 gl.viewport(0, 0, w, h);
@@ -360,7 +363,6 @@
                 gl.uniform1f(gl.getUniformLocation(this.program, 'u_radius'), Math.min(radius, 30));
                 gl.drawArrays(gl.TRIANGLES, 0, 6);
                 
-                // Второй проход (вертикальный) — результат в canvas
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null);
                 gl.bindTexture(gl.TEXTURE_2D, tex2);
                 gl.uniform2f(gl.getUniformLocation(this.program, 'u_direction'), 0, radius);
@@ -370,11 +372,9 @@
             }
         };
 
-        // Инициализация
         let webglReady = WebGLBlur.init();
         console.log('WebGL:', webglReady ? 'OK' : 'Failed');
 
-        // DOM элементы
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const controls = document.getElementById('controls');
@@ -391,10 +391,11 @@
 
         let currentImage = null, currentBlur = 0;
 
-        // События — ИСПРАВЛЕНО: убран дублирующий click с uploadArea
+        // ИСПРАВЛЕНО: только один обработчик на fileInput
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
+            
             const reader = new FileReader();
             reader.onload = (evt) => {
                 currentImage = new Image();
@@ -432,8 +433,11 @@
             currentImage = null; currentBlur = 0;
             previewImage.src = ''; spinnerGlassImg.src = ''; fileInput.value = '';
             previewContainer.classList.remove('active');
-            controls.style.display = 'none'; actions.classList.remove('active'); uploadArea.style.display = 'block';
-            blurSlider.value = 0; blurValue.textContent = '0px';
+            controls.style.display = 'none'; 
+            actions.classList.remove('active'); 
+            uploadArea.style.display = 'block';
+            blurSlider.value = 0; 
+            blurValue.textContent = '0px';
         });
 
         document.getElementById('downloadBtn').addEventListener('click', exportImage);
@@ -442,7 +446,6 @@
         async function getBlurredImage(srcImage, radius) {
             if (radius <= 0 || !webglReady) return srcImage;
             
-            // Масштабирование для производительности
             const maxSize = 1200;
             let img = srcImage;
             if (srcImage.width > maxSize || srcImage.height > maxSize) {
@@ -457,7 +460,8 @@
             const blurred = WebGLBlur.blur(img, radius);
             const result = new Image();
             await new Promise((res, rej) => {
-                result.onload = res; result.onerror = rej;
+                result.onload = res; 
+                result.onerror = rej;
                 result.src = blurred.toDataURL('image/png');
             });
             return result;
@@ -474,11 +478,9 @@
             exportCanvas.width = w; 
             exportCanvas.height = h;
             
-            // Размытие через WebGL
             const blurred = await getBlurredImage(currentImage, currentBlur);
             ctx.drawImage(blurred, 0, 0, w, h);
             
-            // Спиннер
             const spinnerX = w / 2, spinnerY = h / 2;
             const previewW = previewContainer.offsetWidth;
             const scale = (w / previewW) * 80 / 156;
@@ -486,7 +488,6 @@
             
             drawSpinner(ctx, spinnerX, spinnerY, scale, rot, blurred);
             
-            // Сохранение
             saveModalImg.src = exportCanvas.toDataURL('image/png');
             loading.classList.remove('active');
             saveModal.classList.add('active');
@@ -504,13 +505,11 @@
             ctx.translate(cx, cy);
             ctx.scale(scale, scale);
             
-            // Фон спиннера
             ctx.beginPath();
             ctx.arc(0, 0, 78, 0, Math.PI * 2);
             ctx.fillStyle = '#484848';
             ctx.fill();
             
-            // Стекло (из размытой картинки)
             if (currentBlur > 0 && blurredImg) {
                 ctx.save();
                 ctx.beginPath();
@@ -530,7 +529,6 @@
                 ctx.restore();
             }
             
-            // Арка
             ctx.save();
             ctx.rotate(rotation * Math.PI / 180);
             ctx.beginPath();
@@ -541,7 +539,6 @@
             ctx.stroke();
             ctx.restore();
             
-            // Крест
             ctx.strokeStyle = '#FFFFFF';
             ctx.lineWidth = 8;
             ctx.lineCap = 'round';
