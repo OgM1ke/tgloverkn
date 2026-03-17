@@ -182,7 +182,6 @@
     <p class="subtitle">iOS Version</p>
     <div class="container">
         <div class="upload-area" id="uploadArea">
-            <!-- УБРАН capture="environment" -->
             <input type="file" id="fileInput" accept="image/*">
             <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -244,11 +243,13 @@
     </div>
 
     <script>
-        // WebGL Gaussian Blur
+        // WebGL Gaussian Blur — исправленная версия без артефактов
         const WebGLBlur = {
             gl: null,
             program: null,
+            framebuffers: [],
             
+            // Используем highp для точности и правильное распределение весов
             vertexShader: `
                 attribute vec2 a_position;
                 attribute vec2 a_texCoord;
@@ -260,7 +261,7 @@
             `,
             
             fragmentShader: `
-                precision mediump float;
+                precision highp float;
                 varying vec2 v_texCoord;
                 uniform sampler2D u_image;
                 uniform vec2 u_textureSize;
@@ -272,101 +273,191 @@
                     vec4 color = vec4(0.0);
                     float total = 0.0;
                     
-                    for (float i = -30.0; i <= 30.0; i++) {
-                        if (abs(i) > u_radius) continue;
-                        float weight = exp(-0.5 * (i * i) / (u_radius * u_radius));
-                        color += texture2D(u_image, v_texCoord + onePixel * u_direction * i) * weight;
+                    // Sigma для Gaussian: radius / 2.0 — оптимально для качества
+                    float sigma = u_radius * 0.5;
+                    float sigma2 = sigma * sigma * 2.0;
+                    
+                    // Фиксированное количество сэмплов для стабильности
+                    // Для больших радиусов используем больше сэмплов
+                    float samples = min(u_radius * 2.0 + 1.0, 61.0);
+                    float halfSamples = floor(samples / 2.0);
+                    
+                    for (float i = -30.0; i <= 30.0; i += 1.0) {
+                        if (abs(i) > halfSamples) continue;
+                        
+                        float dist = i;
+                        float weight = exp(-(dist * dist) / sigma2);
+                        
+                        vec2 offset = onePixel * u_direction * dist;
+                        color += texture2D(u_image, v_texCoord + offset) * weight;
                         total += weight;
                     }
+                    
                     gl_FragColor = color / total;
                 }
             `,
 
             init() {
                 const canvas = document.createElement('canvas');
-                const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true, antialias: false });
+                // Пробуем получить контекст с нужными параметрами
+                const gl = canvas.getContext('webgl', { 
+                    preserveDrawingBuffer: true, 
+                    antialias: false,
+                    alpha: false
+                }) || canvas.getContext('experimental-webgl', {
+                    preserveDrawingBuffer: true,
+                    antialias: false,
+                    alpha: false
+                });
+                
                 if (!gl) return false;
                 this.gl = gl;
                 
                 const vs = this.createShader(gl.VERTEX_SHADER, this.vertexShader);
                 const fs = this.createShader(gl.FRAGMENT_SHADER, this.fragmentShader);
+                if (!vs || !fs) return false;
+                
                 this.program = this.createProgram(vs, fs);
+                if (!this.program) return false;
+                
+                gl.useProgram(this.program);
+                this.setupBuffers();
+                
                 return true;
             },
 
             createShader(type, source) {
-                const shader = this.gl.createShader(type);
-                this.gl.shaderSource(shader, source);
-                this.gl.compileShader(shader);
+                const gl = this.gl;
+                const shader = gl.createShader(type);
+                gl.shaderSource(shader, source);
+                gl.compileShader(shader);
+                
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                    console.error('Shader error:', gl.getShaderInfoLog(shader));
+                    gl.deleteShader(shader);
+                    return null;
+                }
                 return shader;
             },
 
             createProgram(vs, fs) {
-                const prog = this.gl.createProgram();
-                this.gl.attachShader(prog, vs);
-                this.gl.attachShader(prog, fs);
-                this.gl.linkProgram(prog);
-                this.gl.useProgram(prog);
+                const gl = this.gl;
+                const prog = gl.createProgram();
+                gl.attachShader(prog, vs);
+                gl.attachShader(prog, fs);
+                gl.linkProgram(prog);
+                
+                if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+                    console.error('Program error:', gl.getProgramInfoLog(prog));
+                    return null;
+                }
                 return prog;
             },
 
-            blur(image, radius) {
+            setupBuffers() {
                 const gl = this.gl;
-                const w = image.width, h = image.height;
-                gl.canvas.width = w; 
-                gl.canvas.height = h;
                 
-                const tex = gl.createTexture();
-                gl.bindTexture(gl.TEXTURE_2D, tex);
-                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-                
+                // Позиции
                 const posBuf = gl.createBuffer();
                 gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
                 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
                     -1, -1,  1, -1,  -1, 1,
                     -1, 1,   1, -1,   1, 1
                 ]), gl.STATIC_DRAW);
+                
                 const posLoc = gl.getAttribLocation(this.program, 'a_position');
                 gl.enableVertexAttribArray(posLoc);
                 gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
                 
+                // Текстурные координаты (исправлены — не переворачиваем Y)
                 const texBuf = gl.createBuffer();
                 gl.bindBuffer(gl.ARRAY_BUFFER, texBuf);
                 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-                    0, 1,   1, 1,   0, 0,
-                    0, 0,   1, 1,   1, 0
+                    0, 1,  1, 1,  0, 0,
+                    0, 0,  1, 1,  1, 0
                 ]), gl.STATIC_DRAW);
+                
                 const texLoc = gl.getAttribLocation(this.program, 'a_texCoord');
                 gl.enableVertexAttribArray(texLoc);
                 gl.vertexAttribPointer(texLoc, 2, gl.FLOAT, false, 0, 0);
+            },
+
+            blur(image, radius) {
+                if (radius <= 0.5) return image;
                 
-                const fb = gl.createFramebuffer();
-                const tex2 = gl.createTexture();
-                gl.bindTexture(gl.TEXTURE_2D, tex2);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                const gl = this.gl;
+                const w = image.naturalWidth || image.width;
+                const h = image.naturalHeight || image.height;
+                
+                // Ограничиваем размер для производительности
+                const maxSize = 1600;
+                let srcW = w, srcH = h;
+                let srcImage = image;
+                
+                if (w > maxSize || h > maxSize) {
+                    const scale = maxSize / Math.max(w, h);
+                    srcW = Math.floor(w * scale);
+                    srcH = Math.floor(h * scale);
+                    
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = srcW;
+                    tempCanvas.height = srcH;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.drawImage(image, 0, 0, srcW, srcH);
+                    srcImage = tempCanvas;
+                }
+                
+                gl.canvas.width = srcW;
+                gl.canvas.height = srcH;
+                
+                // Создаём текстуру изображения
+                const tex = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, srcImage);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
                 
+                // Создаём framebuffer и промежуточную текстуру
+                const fb = gl.createFramebuffer();
+                const tex2 = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, tex2);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, srcW, srcH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                
+                // Uniform locations
+                const imageLoc = gl.getUniformLocation(this.program, 'u_image');
+                const sizeLoc = gl.getUniformLocation(this.program, 'u_textureSize');
+                const dirLoc = gl.getUniformLocation(this.program, 'u_direction');
+                const radiusLoc = gl.getUniformLocation(this.program, 'u_radius');
+                
+                // Первый проход: горизонтальное размытие
                 gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
                 gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex2, 0);
-                gl.viewport(0, 0, w, h);
+                gl.viewport(0, 0, srcW, srcH);
                 gl.activeTexture(gl.TEXTURE0);
                 gl.bindTexture(gl.TEXTURE_2D, tex);
-                gl.uniform1i(gl.getUniformLocation(this.program, 'u_image'), 0);
-                gl.uniform2f(gl.getUniformLocation(this.program, 'u_textureSize'), w, h);
-                gl.uniform2f(gl.getUniformLocation(this.program, 'u_direction'), radius, 0);
-                gl.uniform1f(gl.getUniformLocation(this.program, 'u_radius'), Math.min(radius, 30));
+                gl.uniform1i(imageLoc, 0);
+                gl.uniform2f(sizeLoc, srcW, srcH);
+                gl.uniform2f(dirLoc, 1.0, 0.0); // Направление X
+                gl.uniform1f(radiusLoc, radius);
                 gl.drawArrays(gl.TRIANGLES, 0, 6);
                 
+                // Второй проход: вертикальное размытие
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null);
                 gl.bindTexture(gl.TEXTURE_2D, tex2);
-                gl.uniform2f(gl.getUniformLocation(this.program, 'u_direction'), 0, radius);
+                gl.uniform2f(dirLoc, 0.0, 1.0); // Направление Y
                 gl.drawArrays(gl.TRIANGLES, 0, 6);
+                
+                // Очистка
+                gl.deleteTexture(tex);
+                gl.deleteTexture(tex2);
+                gl.deleteFramebuffer(fb);
                 
                 return gl.canvas;
             }
@@ -391,7 +482,6 @@
 
         let currentImage = null, currentBlur = 0;
 
-        // ИСПРАВЛЕНО: только один обработчик на fileInput
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -444,27 +534,21 @@
         window.closeSaveModal = () => saveModal.classList.remove('active');
 
         async function getBlurredImage(srcImage, radius) {
-            if (radius <= 0 || !webglReady) return srcImage;
+            if (radius <= 0.5 || !webglReady) return srcImage;
             
-            const maxSize = 1200;
-            let img = srcImage;
-            if (srcImage.width > maxSize || srcImage.height > maxSize) {
-                const scale = maxSize / Math.max(srcImage.width, srcImage.height);
-                const c = document.createElement('canvas');
-                c.width = Math.floor(srcImage.width * scale);
-                c.height = Math.floor(srcImage.height * scale);
-                c.getContext('2d').drawImage(srcImage, 0, 0, c.width, c.height);
-                img = c;
+            try {
+                const blurred = WebGLBlur.blur(srcImage, radius);
+                const result = new Image();
+                await new Promise((resolve, reject) => {
+                    result.onload = resolve;
+                    result.onerror = reject;
+                    result.src = blurred.toDataURL('image/png');
+                });
+                return result;
+            } catch(e) {
+                console.error('Blur error:', e);
+                return srcImage;
             }
-            
-            const blurred = WebGLBlur.blur(img, radius);
-            const result = new Image();
-            await new Promise((res, rej) => {
-                result.onload = res; 
-                result.onerror = rej;
-                result.src = blurred.toDataURL('image/png');
-            });
-            return result;
         }
 
         async function exportImage() {
@@ -475,18 +559,28 @@
             const ctx = exportCanvas.getContext('2d');
             const w = currentImage.naturalWidth;
             const h = currentImage.naturalHeight;
-            exportCanvas.width = w; 
-            exportCanvas.height = h;
+            
+            // Ограничиваем размер экспорта
+            const maxExport = 1600;
+            let exportW = w, exportH = h;
+            if (w > maxExport || h > maxExport) {
+                const scale = maxExport / Math.max(w, h);
+                exportW = Math.floor(w * scale);
+                exportH = Math.floor(h * scale);
+            }
+            
+            exportCanvas.width = exportW; 
+            exportCanvas.height = exportH;
             
             const blurred = await getBlurredImage(currentImage, currentBlur);
-            ctx.drawImage(blurred, 0, 0, w, h);
+            ctx.drawImage(blurred, 0, 0, exportW, exportH);
             
-            const spinnerX = w / 2, spinnerY = h / 2;
+            const spinnerX = exportW / 2, spinnerY = exportH / 2;
             const previewW = previewContainer.offsetWidth;
-            const scale = (w / previewW) * 80 / 156;
+            const scale = (exportW / previewW) * 80 / 156;
             const rot = getRotation();
             
-            drawSpinner(ctx, spinnerX, spinnerY, scale, rot, blurred);
+            drawSpinner(ctx, spinnerX, spinnerY, scale, rot);
             
             saveModalImg.src = exportCanvas.toDataURL('image/png');
             loading.classList.remove('active');
@@ -500,7 +594,7 @@
             return Math.atan2(m.b, m.a) * (180 / Math.PI);
         }
 
-        function drawSpinner(ctx, cx, cy, scale, rotation, blurredImg) {
+        function drawSpinner(ctx, cx, cy, scale, rotation) {
             ctx.save();
             ctx.translate(cx, cy);
             ctx.scale(scale, scale);
@@ -509,25 +603,6 @@
             ctx.arc(0, 0, 78, 0, Math.PI * 2);
             ctx.fillStyle = '#484848';
             ctx.fill();
-            
-            if (currentBlur > 0 && blurredImg) {
-                ctx.save();
-                ctx.beginPath();
-                ctx.arc(0, 0, 78, 0, Math.PI * 2);
-                ctx.clip();
-                ctx.globalAlpha = 0.35;
-                
-                const s = 156;
-                ctx.drawImage(
-                    blurredImg,
-                    (cx - 78 * scale) / exportCanvas.width * blurredImg.naturalWidth,
-                    (cy - 78 * scale) / exportCanvas.height * blurredImg.naturalHeight,
-                    s * scale / exportCanvas.width * blurredImg.naturalWidth,
-                    s * scale / exportCanvas.height * blurredImg.naturalHeight,
-                    -78, -78, s, s
-                );
-                ctx.restore();
-            }
             
             ctx.save();
             ctx.rotate(rotation * Math.PI / 180);
