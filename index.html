@@ -248,7 +248,7 @@
                     <span>Размытие</span>
                     <span class="value-badge" id="blurValue">0px</span>
                 </div>
-                <input type="range" id="blurSlider" min="0" max="30" value="0" step="0.5">
+                <input type="range" id="blurSlider" min="0" max="100" value="0" step="0.5">
             </div>
         </div>
         <div class="preview-container" id="previewContainer">
@@ -642,9 +642,7 @@
                     
                     if (navigator.canShare({ files: [file] })) {
                         await navigator.share({
-                            files: [file],
-                            title: 'Telegram Loading',
-                            text: 'Сохраненное изображение'
+                            files: [file]
                         });
                         showToast('Открыто меню сохранения');
                         return;
