@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Telegram Glass Loading — iOS Version</title>
+    <title>Telegram Glass Loading — iOS</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
             background: #000000;
             min-height: 100vh;
             display: flex;
@@ -16,7 +16,7 @@
             padding: 40px 20px;
             color: #ffffff;
         }
-        h1 { font-size: 28px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.5px; }
+        h1 { font-size: 28px; font-weight: 600; margin-bottom: 8px; }
         .subtitle { color: #8e8e93; font-size: 15px; margin-bottom: 30px; }
         .container {
             background: #1c1c1e;
@@ -36,12 +36,12 @@
             position: relative;
             overflow: hidden;
         }
-        .upload-area:hover { border-color: #0a84ff; background: #2c2c2e; }
+        .upload-area:active { border-color: #0a84ff; background: #2c2c2e; }
         .upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
         .upload-icon { width: 48px; height: 48px; margin-bottom: 12px; color: #8e8e93; }
         .upload-text { font-size: 15px; color: #ffffff; font-weight: 500; }
         .upload-hint { font-size: 13px; color: #8e8e93; margin-top: 4px; }
-        .controls { margin-bottom: 24px; }
+        .controls { margin-bottom: 24px; display: none; }
         .control-group { margin-bottom: 20px; }
         .control-label {
             display: flex;
@@ -99,7 +99,7 @@
             justify-content: center;
             pointer-events: none;
         }
-        .spinner-container { width: 80px; height: 80px; position: relative; flex-shrink: 0; }
+        .spinner-container { width: 80px; height: 80px; position: relative; }
         .spinner-bg { position: absolute; inset: 0; background: #484848; border-radius: 50%; overflow: hidden; }
         .spinner-glass { position: absolute; inset: 0; border-radius: 50%; opacity: 0.15; overflow: hidden; }
         .spinner-glass-img {
@@ -119,7 +119,8 @@
         .spinner-cross svg { width: 51px; height: 51px; }
         .spinner-cross line { stroke: #FFFFFF; stroke-width: 4.1; stroke-linecap: round; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .actions { display: flex; gap: 12px; }
+        .actions { display: none; gap: 12px; }
+        .actions.active { display: flex; }
         .btn {
             flex: 1;
             padding: 14px 24px;
@@ -128,13 +129,10 @@
             font-size: 15px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s ease;
             font-family: inherit;
         }
         .btn-primary { background: #0a84ff; color: white; }
-        .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-secondary { background: #3a3a3c; color: #ffffff; }
-        .btn-secondary:hover { background: #4a4a4c; }
         #exportCanvas { display: none; }
         .toast {
             position: fixed;
@@ -170,35 +168,26 @@
         .loading { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 3000; flex-direction: column; }
         .loading.active { display: flex; }
         .loading-text { color: #fff; margin-top: 20px; font-size: 16px; }
-        @media (max-width: 480px) {
-            body { padding: 20px 16px; }
-            h1 { font-size: 24px; }
-            .container { padding: 20px; }
-            .spinner-container { width: 60px; height: 60px; }
-            .spinner-cross svg { width: 38px; height: 38px; }
-            .spinner-cross line { stroke-width: 3; }
-            .spinner-arc circle { stroke-width: 4.8; stroke-dasharray: 16 200; }
-        }
     </style>
 </head>
 <body>
     <h1>Telegram Glass Loading</h1>
-    <p class="subtitle">iOS Version — WebGL Blur</p>
+    <p class="subtitle">iOS Version</p>
     <div class="container">
         <div class="upload-area" id="uploadArea">
-            <input type="file" id="fileInput" accept="image/*">
+            <input type="file" id="fileInput" accept="image/*" capture="environment">
             <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="17 8 12 3 7 8"></polyline>
                 <line x1="12" y1="3" x2="12" y2="15"></line>
             </svg>
             <div class="upload-text">Загрузить фото</div>
-            <div class="upload-hint">Нажмите или перетащите изображение</div>
+            <div class="upload-hint">Нажмите для выбора</div>
         </div>
-        <div class="controls" id="controls" style="display: none;">
+        <div class="controls" id="controls">
             <div class="control-group">
                 <div class="control-label">
-                    <span>Степень размытия</span>
+                    <span>Размытие</span>
                     <span class="value-badge" id="blurValue">0px</span>
                 </div>
                 <input type="range" id="blurSlider" min="0" max="30" value="0" step="0.5">
@@ -224,13 +213,13 @@
                 </div>
             </div>
         </div>
-        <div class="actions" id="actions" style="display: none;">
-            <button class="btn btn-secondary" id="newPhotoBtn">Новое фото</button>
-            <button class="btn btn-primary" id="downloadBtn">Сохранить фото</button>
+        <div class="actions" id="actions">
+            <button class="btn btn-secondary" id="newPhotoBtn">Новое</button>
+            <button class="btn btn-primary" id="downloadBtn">Сохранить</button>
         </div>
     </div>
     <canvas id="exportCanvas"></canvas>
-    <div class="toast" id="toast">Фото сохранено!</div>
+    <div class="toast" id="toast">Сохранено!</div>
     <div class="loading" id="loading">
         <div class="spinner-container" style="position: relative;">
             <div class="spinner-bg"></div>
@@ -239,23 +228,20 @@
         <div class="loading-text">Обработка...</div>
     </div>
     <div class="save-modal" id="saveModal">
-        <img id="saveModalImg" src="" alt="Нажмите и удерживайте для сохранения">
+        <img id="saveModalImg" src="" alt="Удерживайте для сохранения">
         <div class="save-modal-text">
-            📱 <b>Удерживайте палец на фото</b><br>и выберите «Сохранить изображение»<br><br>
-            <small style="color: #8e8e93;">Если не работает — откройте в браузере (⋮ → Открыть в браузере)</small>
+            📱 <b>Удерживайте палец на фото</b><br>и выберите «Сохранить изображение»
         </div>
         <button class="save-modal-btn" onclick="closeSaveModal()">Готово</button>
     </div>
 
     <script>
-        // WebGL Gaussian Blur для iOS
+        // WebGL Gaussian Blur — ИСПРАВЛЕННЫЙ (не переворачивает)
         const WebGLBlur = {
             gl: null,
             program: null,
-            positionBuffer: null,
-            texCoordBuffer: null,
             
-            vertexShaderSource: `
+            vertexShader: `
                 attribute vec2 a_position;
                 attribute vec2 a_texCoord;
                 varying vec2 v_texCoord;
@@ -265,7 +251,7 @@
                 }
             `,
             
-            fragmentShaderSource: `
+            fragmentShader: `
                 precision mediump float;
                 varying vec2 v_texCoord;
                 uniform sampler2D u_image;
@@ -274,46 +260,29 @@
                 uniform float u_radius;
                 
                 void main() {
-                    vec2 onePixel = vec2(1.0, 1.0) / u_textureSize;
+                    vec2 onePixel = vec2(1.0) / u_textureSize;
                     vec4 color = vec4(0.0);
                     float total = 0.0;
                     
                     for (float i = -30.0; i <= 30.0; i++) {
-                        if (i > u_radius || i < -u_radius) continue;
+                        if (abs(i) > u_radius) continue;
                         float weight = exp(-0.5 * (i * i) / (u_radius * u_radius));
                         color += texture2D(u_image, v_texCoord + onePixel * u_direction * i) * weight;
                         total += weight;
                     }
-                    
                     gl_FragColor = color / total;
                 }
             `,
 
             init() {
                 const canvas = document.createElement('canvas');
-                const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+                const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true, antialias: false });
                 if (!gl) return false;
                 this.gl = gl;
                 
-                const vertexShader = this.createShader(gl.VERTEX_SHADER, this.vertexShaderSource);
-                const fragmentShader = this.createShader(gl.FRAGMENT_SHADER, this.fragmentShaderSource);
-                this.program = this.createProgram(vertexShader, fragmentShader);
-                
-                // Буферы
-                this.positionBuffer = gl.createBuffer();
-                gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
-                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-                    -1, -1, 1, -1, -1, 1,
-                    -1, 1, 1, -1, 1, 1
-                ]), gl.STATIC_DRAW);
-                
-                this.texCoordBuffer = gl.createBuffer();
-                gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer);
-                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-                    0, 0, 1, 0, 0, 1,
-                    0, 1, 1, 0, 1, 1
-                ]), gl.STATIC_DRAW);
-                
+                const vs = this.createShader(gl.VERTEX_SHADER, this.vertexShader);
+                const fs = this.createShader(gl.FRAGMENT_SHADER, this.fragmentShader);
+                this.program = this.createProgram(vs, fs);
                 return true;
             },
 
@@ -325,147 +294,125 @@
             },
 
             createProgram(vs, fs) {
-                const program = this.gl.createProgram();
-                this.gl.attachShader(program, vs);
-                this.gl.attachShader(program, fs);
-                this.gl.linkProgram(program);
-                this.gl.useProgram(program);
-                return program;
+                const prog = this.gl.createProgram();
+                this.gl.attachShader(prog, vs);
+                this.gl.attachShader(prog, fs);
+                this.gl.linkProgram(prog);
+                this.gl.useProgram(prog);
+                return prog;
             },
 
             blur(image, radius) {
                 const gl = this.gl;
-                const canvas = gl.canvas;
-                canvas.width = image.width;
-                canvas.height = image.height;
+                const w = image.width, h = image.height;
+                gl.canvas.width = w; 
+                gl.canvas.height = h;
                 
-                // Создаём текстуру
-                const texture = gl.createTexture();
-                gl.bindTexture(gl.TEXTURE_2D, texture);
+                // Текстура
+                const tex = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); // ИСПРАВЛЕНИЕ: переворачиваем Y при загрузке
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
                 
-                // Framebuffer для двухпроходного размытия
-                const fb1 = gl.createFramebuffer();
-                const tex1 = gl.createTexture();
-                gl.bindTexture(gl.TEXTURE_2D, tex1);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-                gl.bindFramebuffer(gl.FRAMEBUFFER, fb1);
-                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex1, 0);
-                
-                // Первый проход — горизонтальный
-                this.renderPass(texture, [radius, 0], canvas.width, canvas.height);
-                
-                // Второй проход — вертикальный
-                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-                this.renderPass(tex1, [0, radius], canvas.width, canvas.height);
-                
-                return canvas;
-            },
-
-            renderPass(inputTexture, direction, width, height) {
-                const gl = this.gl;
-                const program = this.program;
-                
-                gl.viewport(0, 0, width, height);
-                
-                const posLoc = gl.getAttribLocation(program, 'a_position');
-                const texLoc = gl.getAttribLocation(program, 'a_texCoord');
-                
-                gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+                // Буферы вершин (исправлены UV-координаты, чтобы не переворачивать)
+                const posBuf = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+                    -1, -1,  1, -1,  -1, 1,
+                    -1, 1,   1, -1,   1, 1
+                ]), gl.STATIC_DRAW);
+                const posLoc = gl.getAttribLocation(this.program, 'a_position');
                 gl.enableVertexAttribArray(posLoc);
                 gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
                 
-                gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer);
+                // UV-координаты: Y=0 внизу для WebGL, но мы инвертируем в шейдере или буфере
+                const texBuf = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, texBuf);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+                    0, 1,   1, 1,   0, 0,
+                    0, 0,   1, 1,   1, 0
+                ]), gl.STATIC_DRAW);
+                const texLoc = gl.getAttribLocation(this.program, 'a_texCoord');
                 gl.enableVertexAttribArray(texLoc);
                 gl.vertexAttribPointer(texLoc, 2, gl.FLOAT, false, 0, 0);
                 
-                gl.activeTexture(gl.TEXTURE0);
-                gl.bindTexture(gl.TEXTURE_2D, inputTexture);
-                gl.uniform1i(gl.getUniformLocation(program, 'u_image'), 0);
-                gl.uniform2f(gl.getUniformLocation(program, 'u_textureSize'), width, height);
-                gl.uniform2f(gl.getUniformLocation(program, 'u_direction'), direction[0], direction[1]);
-                gl.uniform1f(gl.getUniformLocation(program, 'u_radius'), Math.min(direction[0] + direction[1], 30));
+                // FBO для двухпроходного размытия
+                const fb = gl.createFramebuffer();
+                const tex2 = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, tex2);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
                 
+                // Первый проход (горизонтальный)
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex2, 0);
+                gl.viewport(0, 0, w, h);
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.uniform1i(gl.getUniformLocation(this.program, 'u_image'), 0);
+                gl.uniform2f(gl.getUniformLocation(this.program, 'u_textureSize'), w, h);
+                gl.uniform2f(gl.getUniformLocation(this.program, 'u_direction'), radius, 0);
+                gl.uniform1f(gl.getUniformLocation(this.program, 'u_radius'), Math.min(radius, 30));
                 gl.drawArrays(gl.TRIANGLES, 0, 6);
+                
+                // Второй проход (вертикальный) — результат в canvas
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                gl.bindTexture(gl.TEXTURE_2D, tex2);
+                gl.uniform2f(gl.getUniformLocation(this.program, 'u_direction'), 0, radius);
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+                
+                return gl.canvas;
             }
         };
 
-        // Основной код
+        // Инициализация
+        let webglReady = WebGLBlur.init();
+        console.log('WebGL:', webglReady ? 'OK' : 'Failed');
+
+        // DOM элементы
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const controls = document.getElementById('controls');
         const previewContainer = document.getElementById('previewContainer');
         const previewImage = document.getElementById('previewImage');
         const spinnerGlassImg = document.getElementById('spinnerGlassImg');
-        const spinnerArc = document.getElementById('spinnerArc');
         const blurSlider = document.getElementById('blurSlider');
         const blurValue = document.getElementById('blurValue');
         const actions = document.getElementById('actions');
-        const newPhotoBtn = document.getElementById('newPhotoBtn');
-        const downloadBtn = document.getElementById('downloadBtn');
         const exportCanvas = document.getElementById('exportCanvas');
-        const toast = document.getElementById('toast');
         const saveModal = document.getElementById('saveModal');
         const saveModalImg = document.getElementById('saveModalImg');
         const loading = document.getElementById('loading');
 
-        let currentImage = null, currentBlur = 0, isProcessing = false;
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const isAndroid = /Android/.test(navigator.userAgent);
-        const isTelegramWebView = /Telegram/i.test(navigator.userAgent) || window.TelegramWebview !== undefined;
+        let currentImage = null, currentBlur = 0;
 
-        // Инициализация WebGL
-        let webglAvailable = false;
-        if (isIOS) {
-            webglAvailable = WebGLBlur.init();
-            console.log('WebGL available:', webglAvailable);
-        }
-
-        uploadArea.addEventListener('click', (e) => { if(e.target !== fileInput) fileInput.click(); });
-        uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.style.borderColor = '#0a84ff'; });
-        uploadArea.addEventListener('dragleave', (e) => { e.preventDefault(); uploadArea.style.borderColor = '#3a3a3c'; });
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault(); e.stopPropagation();
-            uploadArea.style.borderColor = '#3a3a3c';
-            const file = e.dataTransfer.files[0];
-            if(file && file.type.startsWith('image/')) handleFile(file);
-        });
+        // События — ИСПРАВЛЕНО: убран дублирующий click с uploadArea
         fileInput.addEventListener('change', (e) => {
-            e.stopPropagation();
             const file = e.target.files[0];
-            if(file && !isProcessing) {
-                isProcessing = true;
-                handleFile(file);
-                setTimeout(() => isProcessing = false, 100);
-            }
-        });
-
-        function handleFile(file) {
+            if (!file) return;
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = (evt) => {
                 currentImage = new Image();
                 currentImage.onload = () => {
-                    previewImage.src = e.target.result;
-                    spinnerGlassImg.src = e.target.result;
+                    previewImage.src = evt.target.result;
+                    spinnerGlassImg.src = evt.target.result;
                     previewContainer.classList.add('active');
                     controls.style.display = 'block';
-                    actions.style.display = 'flex';
+                    actions.classList.add('active');
                     uploadArea.style.display = 'none';
                     updateContainerSize();
                     blurSlider.value = 10;
                     updateBlur(10);
                 };
-                currentImage.src = e.target.result;
+                currentImage.src = evt.target.result;
             };
             reader.readAsDataURL(file);
-        }
+        });
 
         function updateContainerSize() {
             const rect = previewContainer.getBoundingClientRect();
@@ -473,175 +420,135 @@
             previewContainer.style.setProperty('--container-height', rect.height + 'px');
         }
         window.addEventListener('resize', updateContainerSize);
+
         blurSlider.addEventListener('input', (e) => updateBlur(parseFloat(e.target.value)));
-        function updateBlur(value) {
-            currentBlur = value;
-            blurValue.textContent = value + 'px';
-            previewContainer.style.setProperty('--blur', value + 'px');
+        function updateBlur(val) {
+            currentBlur = val;
+            blurValue.textContent = val + 'px';
+            previewContainer.style.setProperty('--blur', val + 'px');
         }
 
-        newPhotoBtn.addEventListener('click', () => {
+        document.getElementById('newPhotoBtn').addEventListener('click', () => {
             currentImage = null; currentBlur = 0;
             previewImage.src = ''; spinnerGlassImg.src = ''; fileInput.value = '';
             previewContainer.classList.remove('active');
-            controls.style.display = 'none'; actions.style.display = 'none'; uploadArea.style.display = 'block';
+            controls.style.display = 'none'; actions.classList.remove('active'); uploadArea.style.display = 'block';
             blurSlider.value = 0; blurValue.textContent = '0px';
         });
 
-        function getCurrentRotation() {
-            const svg = spinnerArc.querySelector('svg');
-            const style = window.getComputedStyle(svg);
-            const matrix = new DOMMatrix(style.transform);
-            return Math.atan2(matrix.b, matrix.a) * (180 / Math.PI);
-        }
+        document.getElementById('downloadBtn').addEventListener('click', exportImage);
+        window.closeSaveModal = () => saveModal.classList.remove('active');
 
-        downloadBtn.addEventListener('click', () => { if(currentImage) exportImage(); });
-        function closeSaveModal() { saveModal.classList.remove('active'); }
-
-        async function getBlurredImage(image, radius) {
-            if (radius <= 0) return image;
+        async function getBlurredImage(srcImage, radius) {
+            if (radius <= 0 || !webglReady) return srcImage;
             
-            // Для iOS используем WebGL если доступен
-            if (isIOS && webglAvailable) {
-                try {
-                    // Масштабируем большие изображения
-                    const maxSize = 1200;
-                    let srcImage = image;
-                    if (image.width > maxSize || image.height > maxSize) {
-                        const scale = maxSize / Math.max(image.width, image.height);
-                        const canvas = document.createElement('canvas');
-                        canvas.width = image.width * scale;
-                        canvas.height = image.height * scale;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-                        srcImage = canvas;
-                    }
-                    
-                    const blurredCanvas = WebGLBlur.blur(srcImage, radius);
-                    const result = new Image();
-                    await new Promise((resolve, reject) => {
-                        result.onload = resolve;
-                        result.onerror = reject;
-                        result.src = blurredCanvas.toDataURL('image/png');
-                    });
-                    return result;
-                } catch(e) {
-                    console.error('WebGL blur failed:', e);
-                }
+            // Масштабирование для производительности
+            const maxSize = 1200;
+            let img = srcImage;
+            if (srcImage.width > maxSize || srcImage.height > maxSize) {
+                const scale = maxSize / Math.max(srcImage.width, srcImage.height);
+                const c = document.createElement('canvas');
+                c.width = Math.floor(srcImage.width * scale);
+                c.height = Math.floor(srcImage.height * scale);
+                c.getContext('2d').drawImage(srcImage, 0, 0, c.width, c.height);
+                img = c;
             }
             
-            // Fallback: просто возвращаем оригинал (без размытия)
-            return image;
+            const blurred = WebGLBlur.blur(img, radius);
+            const result = new Image();
+            await new Promise((res, rej) => {
+                result.onload = res; result.onerror = rej;
+                result.src = blurred.toDataURL('image/png');
+            });
+            return result;
         }
 
         async function exportImage() {
+            if (!currentImage) return;
             loading.classList.add('active');
             await new Promise(r => setTimeout(r, 50));
             
             const ctx = exportCanvas.getContext('2d');
-            const width = currentImage.naturalWidth;
-            const height = currentImage.naturalHeight;
-            exportCanvas.width = width;
-            exportCanvas.height = height;
+            const w = currentImage.naturalWidth;
+            const h = currentImage.naturalHeight;
+            exportCanvas.width = w; 
+            exportCanvas.height = h;
             
-            // Получаем размытую версию
-            const blurredImage = await getBlurredImage(currentImage, currentBlur);
-            ctx.drawImage(blurredImage, 0, 0, width, height);
+            // Размытие через WebGL
+            const blurred = await getBlurredImage(currentImage, currentBlur);
+            ctx.drawImage(blurred, 0, 0, w, h);
             
-            // Рисуем спиннер
-            const centerX = width / 2, centerY = height / 2;
-            const previewWidth = previewContainer.offsetWidth;
-            const scaleFactor = width / previewWidth;
-            const spinnerSize = 80 * scaleFactor;
-            const rotation = getCurrentRotation();
-            drawTelegramSpinner(ctx, centerX, centerY, spinnerSize, rotation, blurredImage);
+            // Спиннер
+            const spinnerX = w / 2, spinnerY = h / 2;
+            const previewW = previewContainer.offsetWidth;
+            const scale = (w / previewW) * 80 / 156;
+            const rot = getRotation();
             
-            const dataUrl = exportCanvas.toDataURL('image/png');
+            drawSpinner(ctx, spinnerX, spinnerY, scale, rot, blurred);
+            
+            // Сохранение
+            saveModalImg.src = exportCanvas.toDataURL('image/png');
             loading.classList.remove('active');
-            
-            if (isIOS || (isAndroid && isTelegramWebView)) {
-                saveModalImg.src = dataUrl;
-                saveModal.classList.add('active');
-            } else if (isAndroid) {
-                const newWindow = window.open();
-                if (newWindow) {
-                    newWindow.document.write(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:20px}img{max-width:100%;max-height:80vh;border-radius:12px;margin-bottom:20px}.instruction{color:#fff;text-align:center;font-size:17px;line-height:1.5;margin-bottom:8px}.hint{color:#8e8e93;text-align:center;font-size:14px}</style></head><body><img src="${dataUrl}" alt="Удерживайте для сохранения"><div class="instruction">📱 Удерживайте палец на фото<br>и выберите «Сохранить изображение»</div><div class="hint">Или «Скачать изображение» в зависимости от браузера</div></body></html>`);
-                } else {
-                    saveModalImg.src = dataUrl;
-                    saveModal.classList.add('active');
-                }
-            } else {
-                const link = document.createElement('a');
-                link.download = 'telegram-loading-' + Date.now() + '.png';
-                link.href = dataUrl;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                showToast();
-            }
+            saveModal.classList.add('active');
         }
 
-        function drawTelegramSpinner(ctx, x, y, size, rotation, blurredImage) {
+        function getRotation() {
+            const svg = document.querySelector('#spinnerArc svg');
+            const style = window.getComputedStyle(svg);
+            const m = new DOMMatrix(style.transform);
+            return Math.atan2(m.b, m.a) * (180 / Math.PI);
+        }
+
+        function drawSpinner(ctx, cx, cy, scale, rotation, blurredImg) {
             ctx.save();
-            ctx.translate(x, y);
-            const scale = size / 156;
+            ctx.translate(cx, cy);
+            ctx.scale(scale, scale);
             
+            // Фон спиннера
             ctx.beginPath();
-            ctx.arc(0, 0, 78 * scale, 0, Math.PI * 2);
+            ctx.arc(0, 0, 78, 0, Math.PI * 2);
             ctx.fillStyle = '#484848';
             ctx.fill();
             
-            if (currentBlur > 0 && blurredImage) {
+            // Стекло (из размытой картинки)
+            if (currentBlur > 0 && blurredImg) {
                 ctx.save();
                 ctx.beginPath();
-                ctx.arc(0, 0, 78 * scale, 0, Math.PI * 2);
+                ctx.arc(0, 0, 78, 0, Math.PI * 2);
                 ctx.clip();
                 ctx.globalAlpha = 0.35;
                 
-                // Вырезаем область под спиннер из размытой картинки
-                const spinnerX = x - 78 * scale;
-                const spinnerY = y - 78 * scale;
-                const spinnerSizePx = 156 * scale;
-                
+                const s = 156;
                 ctx.drawImage(
-                    blurredImage, 
-                    (spinnerX / exportCanvas.width) * blurredImage.naturalWidth,
-                    (spinnerY / exportCanvas.height) * blurredImage.naturalHeight,
-                    (spinnerSizePx / exportCanvas.width) * blurredImage.naturalWidth,
-                    (spinnerSizePx / exportCanvas.height) * blurredImage.naturalHeight,
-                    -78 * scale, -78 * scale, 156 * scale, 156 * scale
+                    blurredImg,
+                    (cx - 78 * scale) / exportCanvas.width * blurredImg.naturalWidth,
+                    (cy - 78 * scale) / exportCanvas.height * blurredImg.naturalHeight,
+                    s * scale / exportCanvas.width * blurredImg.naturalWidth,
+                    s * scale / exportCanvas.height * blurredImg.naturalHeight,
+                    -78, -78, s, s
                 );
                 ctx.restore();
             }
             
+            // Арка
             ctx.save();
-            ctx.rotate((rotation * Math.PI) / 180);
+            ctx.rotate(rotation * Math.PI / 180);
             ctx.beginPath();
-            ctx.arc(0, 0, 63 * scale, 0, Math.PI * 0.33);
+            ctx.arc(0, 0, 63, 0, Math.PI * 0.33);
             ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 10 * scale;
+            ctx.lineWidth = 10;
             ctx.lineCap = 'round';
             ctx.stroke();
             ctx.restore();
             
-            const halfCross = 23 * scale;
+            // Крест
             ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 8 * scale;
+            ctx.lineWidth = 8;
             ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(-halfCross, -halfCross);
-            ctx.lineTo(halfCross, halfCross);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(halfCross, -halfCross);
-            ctx.lineTo(-halfCross, halfCross);
-            ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(-23, -23); ctx.lineTo(23, 23); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(23, -23); ctx.lineTo(-23, 23); ctx.stroke();
+            
             ctx.restore();
-        }
-
-        function showToast() {
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 2000);
         }
     </script>
 </body>
