@@ -728,10 +728,10 @@
             const ctx = exportCanvas.getContext('2d');
             const width = currentImage.naturalWidth;
             const height = currentImage.naturalHeight;
-        
+
             exportCanvas.width = width;
             exportCanvas.height = height;
-        
+
             // 1. Рисуем исходник во временный canvas
             const tempCanvas = document.createElement('canvas');
             const tempCtx = tempCanvas.getContext('2d');
@@ -739,29 +739,52 @@
             tempCanvas.height = height;
             tempCtx.drawImage(currentImage, 0, 0, width, height);
             
-            // 2. Применяем blur на пикселях **для всех платформ**
+            // 2. Применяем размытие
             if (currentBlur > 0) {
-                applyFastBlur(tempCanvas, width, height, currentBlur);
+                if (isIOS) {
+                    // iOS: ручной box blur
+                    applyFastBlur(tempCanvas, width, height, currentBlur);
+                } else {
+                    // ПК/Android: CSS filter
+                    const blurCanvas = document.createElement('canvas');
+                    const blurCtx = blurCanvas.getContext('2d');
+                    
+                    const padding = Math.ceil(currentBlur * 3);
+                    blurCanvas.width = width + padding * 2;
+                    blurCanvas.height = height + padding * 2;
+
+                    blurCtx.drawImage(currentImage, padding, padding, width, height);
+                    blurCtx.drawImage(currentImage, 0, 0, 1, height, 0, padding, padding, height);
+                    blurCtx.drawImage(currentImage, width-1, 0, 1, height, width+padding, padding, padding, height);
+                    blurCtx.drawImage(currentImage, 0, 0, width, 1, padding, 0, width, padding);
+                    blurCtx.drawImage(currentImage, 0, height-1, width, 1, padding, height+padding, width, padding);
+
+                    blurCtx.filter = `blur(${currentBlur}px)`;
+                    blurCtx.drawImage(blurCanvas, 0, 0);
+                    blurCtx.filter = 'none';
+                    
+                    tempCtx.clearRect(0, 0, width, height);
+                    tempCtx.drawImage(blurCanvas, padding, padding, width, height, 0, 0, width, height);
+                }
             }
             
-            // 3. Копируем результат в exportCanvas
-            ctx.clearRect(0, 0, width, height);
-            ctx.drawImage(tempCanvas, 0, 0, width, height);
-        
-            // 4. Рисуем спиннер с "стеклом"
+            // 3. Копируем размытую картинку в exportCanvas
+            ctx.drawImage(tempCanvas, 0, 0);
+
+            // Рисуем спиннер (передаем tempCanvas для эффекта стекла)
             const centerX = width / 2;
             const centerY = height / 2;
             const previewWidth = previewContainer.offsetWidth;
             const scaleFactor = width / previewWidth;
             const spinnerSize = 80 * scaleFactor;
             const rotation = getCurrentRotation();
-        
-            drawTelegramSpinner(ctx, centerX, centerY, spinnerSize, rotation);
-        
+
+            drawTelegramSpinner(ctx, centerX, centerY, spinnerSize, rotation, tempCanvas, width, height);
+
             const dataUrl = exportCanvas.toDataURL('image/png');
             
             loading.classList.remove('active');
-        
+
             if (isAndroid && isTelegramWebView) {
                 saveModalImg.src = dataUrl;
                 saveModal.classList.add('active');
@@ -830,7 +853,7 @@
             }
         }
 
-        function drawTelegramSpinner(ctx, x, y, size, rotation) {
+        function drawTelegramSpinner(ctx, x, y, size, rotation, blurredCanvas, canvasWidth, canvasHeight) {
             ctx.save();
             ctx.translate(x, y);
 
@@ -841,7 +864,7 @@
             ctx.fillStyle = '#484848';
             ctx.fill();
 
-            if (currentBlur > 0) {
+            if (currentBlur > 0 && blurredCanvas) {
                 ctx.save();
                 ctx.beginPath();
                 ctx.arc(0, 0, 78 * scale, 0, Math.PI * 2);
@@ -849,38 +872,22 @@
 
                 ctx.globalAlpha = 0.35;
 
-                if (isIOS) {
-                    // iOS: упрощенное стекло без сложного blur (чтобы не тормозило)
-                    const glassSize = Math.ceil(156 * scale);
-                    const glassCanvas = document.createElement('canvas');
-                    const glassCtx = glassCanvas.getContext('2d');
-                    glassCanvas.width = glassSize;
-                    glassCanvas.height = glassSize;
+                // Вычисляем координаты для вырезки размытой области под спиннер
+                const spinnerX = x - 78 * scale;
+                const spinnerY = y - 78 * scale;
+                const spinnerSizePx = 156 * scale;
+                
+                // Масштабируем координаты относительно разрешения canvas
+                const sourceX = (spinnerX / canvasWidth) * blurredCanvas.width;
+                const sourceY = (spinnerY / canvasHeight) * blurredCanvas.height;
+                const sourceW = (spinnerSizePx / canvasWidth) * blurredCanvas.width;
+                const sourceH = (spinnerSizePx / canvasHeight) * blurredCanvas.height;
 
-                    const sourceX = (x - 78 * scale) * (currentImage.naturalWidth / exportCanvas.width);
-                    const sourceY = (y - 78 * scale) * (currentImage.naturalHeight / exportCanvas.height);
-                    const sourceSize = (156 * scale) * (currentImage.naturalWidth / exportCanvas.width);
-
-                    glassCtx.drawImage(currentImage, sourceX, sourceY, sourceSize, sourceSize, 0, 0, glassSize, glassSize);
-                    
-                    // Упрощенный blur для стекла — просто уменьшаем/увеличиваем
-                    const small = document.createElement('canvas');
-                    const smallCtx = small.getContext('2d');
-                    const s = Math.max(2, Math.floor(glassSize * 0.3));
-                    small.width = s;
-                    small.height = s;
-                    smallCtx.drawImage(glassCanvas, 0, 0, glassSize, glassSize, 0, 0, s, s);
-                    
-                    glassCtx.clearRect(0, 0, glassSize, glassSize);
-                    glassCtx.imageSmoothingEnabled = true;
-                    glassCtx.imageSmoothingQuality = 'low';
-                    glassCtx.drawImage(small, 0, 0, s, s, 0, 0, glassSize, glassSize);
-
-                    ctx.drawImage(glassCanvas, -78 * scale, -78 * scale, 156 * scale, 156 * scale);
-                } else {
-                    ctx.filter = `blur(${currentBlur}px)`;
-                    ctx.drawImage(currentImage, -x, -y, currentImage.naturalWidth, currentImage.naturalHeight);
-                }
+                ctx.drawImage(
+                    blurredCanvas, 
+                    sourceX, sourceY, sourceW, sourceH,
+                    -78 * scale, -78 * scale, 156 * scale, 156 * scale
+                );
 
                 ctx.restore();
             }
