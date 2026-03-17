@@ -169,10 +169,61 @@
             padding: 20px;
         }
         .save-modal.active { display: flex; }
-        .save-modal img { max-width: 100%; max-height: 70vh; border-radius: 12px; margin-bottom: 20px; }
-        .save-modal-text { color: #fff; text-align: center; font-size: 17px; line-height: 1.5; margin-bottom: 20px; }
-        .save-modal-btn { background: #0a84ff; color: white; border: none; padding: 14px 32px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; }
-        .loading { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 3000; flex-direction: column; }
+        .save-modal-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 400px;
+        }
+        .save-modal img { 
+            max-width: 100%; 
+            max-height: 50vh; 
+            border-radius: 12px; 
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        .save-modal-text { 
+            color: #fff; 
+            text-align: center; 
+            font-size: 15px; 
+            line-height: 1.5; 
+            margin-bottom: 24px;
+            opacity: 0.8;
+        }
+        .save-modal-buttons {
+            display: flex;
+            gap: 12px;
+            width: 100%;
+        }
+        .save-modal-btn {
+            flex: 1;
+            padding: 16px 24px;
+            border-radius: 12px;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .save-modal-btn-secondary {
+            background: #3a3a3c;
+            color: #ffffff;
+        }
+        .save-modal-btn-primary {
+            background: #0a84ff;
+            color: white;
+        }
+        .loading { 
+            position: fixed; 
+            inset: 0; 
+            background: rgba(0,0,0,0.8); 
+            display: none; 
+            align-items: center; 
+            justify-content: center; 
+            z-index: 3000; 
+            flex-direction: column; 
+        }
         .loading.active { display: flex; }
         .loading-text { color: #fff; margin-top: 20px; font-size: 16px; }
     </style>
@@ -222,7 +273,7 @@
         </div>
         <div class="actions" id="actions">
             <button class="btn btn-secondary" id="newPhotoBtn">Новое</button>
-            <button class="btn btn-primary" id="downloadBtn">Сохранить</button>
+            <button class="btn btn-primary" id="downloadBtn">Готово</button>
         </div>
     </div>
     <canvas id="exportCanvas"></canvas>
@@ -235,11 +286,16 @@
         <div class="loading-text">Обработка...</div>
     </div>
     <div class="save-modal" id="saveModal">
-        <img id="saveModalImg" src="" alt="Удерживайте для сохранения">
-        <div class="save-modal-text">
-            📱 <b>Удерживайте палец на фото</b><br>и выберите «Сохранить изображение»
+        <div class="save-modal-content">
+            <img id="saveModalImg" src="" alt="Готовое изображение">
+            <div class="save-modal-text">
+                Изображение готово к сохранению
+            </div>
+            <div class="save-modal-buttons">
+                <button class="save-modal-btn save-modal-btn-secondary" onclick="closeSaveModal()">Назад</button>
+                <button class="save-modal-btn save-modal-btn-primary" onclick="saveImage()">Сохранить фото</button>
+            </div>
         </div>
-        <button class="save-modal-btn" onclick="closeSaveModal()">Готово</button>
     </div>
 
     <script>
@@ -249,7 +305,6 @@
             program: null,
             framebuffers: [],
             
-            // Используем highp для точности и правильное распределение весов
             vertexShader: `
                 attribute vec2 a_position;
                 attribute vec2 a_texCoord;
@@ -273,12 +328,9 @@
                     vec4 color = vec4(0.0);
                     float total = 0.0;
                     
-                    // Sigma для Gaussian: radius / 2.0 — оптимально для качества
                     float sigma = u_radius * 0.5;
                     float sigma2 = sigma * sigma * 2.0;
                     
-                    // Фиксированное количество сэмплов для стабильности
-                    // Для больших радиусов используем больше сэмплов
                     float samples = min(u_radius * 2.0 + 1.0, 61.0);
                     float halfSamples = floor(samples / 2.0);
                     
@@ -299,7 +351,6 @@
 
             init() {
                 const canvas = document.createElement('canvas');
-                // Пробуем получить контекст с нужными параметрами
                 const gl = canvas.getContext('webgl', { 
                     preserveDrawingBuffer: true, 
                     antialias: false,
@@ -357,7 +408,6 @@
             setupBuffers() {
                 const gl = this.gl;
                 
-                // Позиции
                 const posBuf = gl.createBuffer();
                 gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
                 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
@@ -369,7 +419,6 @@
                 gl.enableVertexAttribArray(posLoc);
                 gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
                 
-                // Текстурные координаты (исправлены — не переворачиваем Y)
                 const texBuf = gl.createBuffer();
                 gl.bindBuffer(gl.ARRAY_BUFFER, texBuf);
                 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
@@ -389,7 +438,6 @@
                 const w = image.naturalWidth || image.width;
                 const h = image.naturalHeight || image.height;
                 
-                // Ограничиваем размер для производительности
                 const maxSize = 1600;
                 let srcW = w, srcH = h;
                 let srcImage = image;
@@ -410,7 +458,6 @@
                 gl.canvas.width = srcW;
                 gl.canvas.height = srcH;
                 
-                // Создаём текстуру изображения
                 const tex = gl.createTexture();
                 gl.bindTexture(gl.TEXTURE_2D, tex);
                 gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
@@ -420,7 +467,6 @@
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
                 
-                // Создаём framebuffer и промежуточную текстуру
                 const fb = gl.createFramebuffer();
                 const tex2 = gl.createTexture();
                 gl.bindTexture(gl.TEXTURE_2D, tex2);
@@ -430,13 +476,11 @@
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
                 
-                // Uniform locations
                 const imageLoc = gl.getUniformLocation(this.program, 'u_image');
                 const sizeLoc = gl.getUniformLocation(this.program, 'u_textureSize');
                 const dirLoc = gl.getUniformLocation(this.program, 'u_direction');
                 const radiusLoc = gl.getUniformLocation(this.program, 'u_radius');
                 
-                // Первый проход: горизонтальное размытие
                 gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
                 gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex2, 0);
                 gl.viewport(0, 0, srcW, srcH);
@@ -444,17 +488,15 @@
                 gl.bindTexture(gl.TEXTURE_2D, tex);
                 gl.uniform1i(imageLoc, 0);
                 gl.uniform2f(sizeLoc, srcW, srcH);
-                gl.uniform2f(dirLoc, 1.0, 0.0); // Направление X
+                gl.uniform2f(dirLoc, 1.0, 0.0);
                 gl.uniform1f(radiusLoc, radius);
                 gl.drawArrays(gl.TRIANGLES, 0, 6);
                 
-                // Второй проход: вертикальное размытие
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null);
                 gl.bindTexture(gl.TEXTURE_2D, tex2);
-                gl.uniform2f(dirLoc, 0.0, 1.0); // Направление Y
+                gl.uniform2f(dirLoc, 0.0, 1.0);
                 gl.drawArrays(gl.TRIANGLES, 0, 6);
                 
-                // Очистка
                 gl.deleteTexture(tex);
                 gl.deleteTexture(tex2);
                 gl.deleteFramebuffer(fb);
@@ -480,7 +522,7 @@
         const saveModalImg = document.getElementById('saveModalImg');
         const loading = document.getElementById('loading');
 
-        let currentImage = null, currentBlur = 0;
+        let currentImage = null, currentBlur = 0, currentExportDataUrl = null;
 
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -520,7 +562,7 @@
         }
 
         document.getElementById('newPhotoBtn').addEventListener('click', () => {
-            currentImage = null; currentBlur = 0;
+            currentImage = null; currentBlur = 0; currentExportDataUrl = null;
             previewImage.src = ''; spinnerGlassImg.src = ''; fileInput.value = '';
             previewContainer.classList.remove('active');
             controls.style.display = 'none'; 
@@ -560,7 +602,6 @@
             const w = currentImage.naturalWidth;
             const h = currentImage.naturalHeight;
             
-            // Ограничиваем размер экспорта
             const maxExport = 1600;
             let exportW = w, exportH = h;
             if (w > maxExport || h > maxExport) {
@@ -582,9 +623,72 @@
             
             drawSpinner(ctx, spinnerX, spinnerY, scale, rot);
             
-            saveModalImg.src = exportCanvas.toDataURL('image/png');
+            currentExportDataUrl = exportCanvas.toDataURL('image/png');
+            saveModalImg.src = currentExportDataUrl;
             loading.classList.remove('active');
             saveModal.classList.add('active');
+        }
+
+        // Функция сохранения с несколькими fallback методами
+        window.saveImage = async function() {
+            if (!currentExportDataUrl) return;
+            
+            try {
+                // Метод 1: Попытка использовать Web Share API (работает в iOS Safari и WebView)
+                if (navigator.share && navigator.canShare) {
+                    const response = await fetch(currentExportDataUrl);
+                    const blob = await response.blob();
+                    const file = new File([blob], 'telegram-loading.png', { type: 'image/png' });
+                    
+                    if (navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: 'Telegram Loading',
+                            text: 'Сохраненное изображение'
+                        });
+                        showToast('Открыто меню сохранения');
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.log('Share API failed:', e);
+            }
+            
+            try {
+                // Метод 2: Создание ссылки для скачивания
+                const link = document.createElement('a');
+                link.download = 'telegram-loading.png';
+                link.href = currentExportDataUrl;
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast('Сохранение началось');
+            } catch (e) {
+                console.error('Save failed:', e);
+                // Метод 3: Открыть в новом окне как fallback
+                const newWindow = window.open();
+                if (newWindow) {
+                    newWindow.document.write(`
+                        <html>
+                        <head><title>Сохранить изображение</title></head>
+                        <body style="margin:0;display:flex;align-items:center;justify-content:center;background:#000;">
+                        <img src="${currentExportDataUrl}" style="max-width:100%;max-height:100vh;" onclick="window.location.href=this.src">
+                        <div style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,0.9);padding:12px 20px;border-radius:8px;font-family:sans-serif;font-size:14px;">
+                        Нажмите и удерживайте на фото → Сохранить изображение
+                        </div>
+                        </body></html>
+                    `);
+                    showToast('Открылось новое окно');
+                }
+            }
+        };
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
         }
 
         function getRotation() {
