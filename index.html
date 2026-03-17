@@ -2,12 +2,17 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Telegram Glass Loading — iOS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Glass Loading</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
             background: #000000;
             min-height: 100vh;
             display: flex;
@@ -16,8 +21,20 @@
             padding: 40px 20px;
             color: #ffffff;
         }
-        h1 { font-size: 28px; font-weight: 600; margin-bottom: 8px; }
-        .subtitle { color: #8e8e93; font-size: 15px; margin-bottom: 30px; }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            color: #8e8e93;
+            font-size: 15px;
+            margin-bottom: 30px;
+        }
+
         .container {
             background: #1c1c1e;
             border-radius: 20px;
@@ -25,6 +42,7 @@
             width: 100%;
             max-width: 600px;
         }
+
         .upload-area {
             border: 2px dashed #3a3a3c;
             border-radius: 16px;
@@ -36,20 +54,46 @@
             position: relative;
             overflow: hidden;
         }
-        .upload-area:active { border-color: #0a84ff; background: #2c2c2e; }
-        .upload-area input[type="file"] { 
-            position: absolute; 
-            inset: 0; 
-            opacity: 0; 
-            cursor: pointer;
-            width: 100%;
-            height: 100%;
+
+        .upload-area:hover {
+            border-color: #0a84ff;
+            background: #2c2c2e;
         }
-        .upload-icon { width: 48px; height: 48px; margin-bottom: 12px; color: #8e8e93; pointer-events: none; }
-        .upload-text { font-size: 15px; color: #ffffff; font-weight: 500; pointer-events: none; }
-        .upload-hint { font-size: 13px; color: #8e8e93; margin-top: 4px; pointer-events: none; }
-        .controls { margin-bottom: 24px; display: none; }
-        .control-group { margin-bottom: 20px; }
+
+        .upload-area input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .upload-icon {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 12px;
+            color: #8e8e93;
+        }
+
+        .upload-text {
+            font-size: 15px;
+            color: #ffffff;
+            font-weight: 500;
+        }
+
+        .upload-hint {
+            font-size: 13px;
+            color: #8e8e93;
+            margin-top: 4px;
+        }
+
+        .controls {
+            margin-bottom: 24px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
         .control-label {
             display: flex;
             justify-content: space-between;
@@ -59,6 +103,7 @@
             font-weight: 500;
             color: #ffffff;
         }
+
         .value-badge {
             background: #3a3a3c;
             padding: 4px 10px;
@@ -69,6 +114,7 @@
             min-width: 45px;
             text-align: center;
         }
+
         input[type="range"] {
             width: 100%;
             height: 4px;
@@ -77,15 +123,23 @@
             outline: none;
             -webkit-appearance: none;
         }
+
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
+            appearance: none;
             width: 20px;
             height: 20px;
             border-radius: 50%;
             background: #0a84ff;
             cursor: pointer;
             box-shadow: 0 2px 6px rgba(10,132,255,0.3);
+            transition: transform 0.1s;
         }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+
         .preview-container {
             position: relative;
             width: 100%;
@@ -96,8 +150,19 @@
             display: none;
             margin-bottom: 20px;
         }
-        .preview-container.active { display: block; }
-        .preview-image { width: 100%; height: 100%; object-fit: cover; filter: blur(var(--blur, 0px)); }
+
+        .preview-container.active {
+            display: block;
+        }
+
+        .preview-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: blur(var(--blur, 0px));
+        }
+
+        /* Контейнер для спиннера - строго по центру */
         .spinner-wrapper {
             position: absolute;
             inset: 0;
@@ -106,9 +171,33 @@
             justify-content: center;
             pointer-events: none;
         }
-        .spinner-container { width: 80px; height: 80px; position: relative; }
-        .spinner-bg { position: absolute; inset: 0; background: #484848; border-radius: 50%; overflow: hidden; }
-        .spinner-glass { position: absolute; inset: 0; border-radius: 50%; opacity: 0.15; overflow: hidden; }
+
+        /* Фиксированный размер спиннера 80px */
+        .spinner-container {
+            width: 80px;
+            height: 80px;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        /* Серый фон круга */
+        .spinner-bg {
+            position: absolute;
+            inset: 0;
+            background: #484848;
+            border-radius: 50%;
+            overflow: hidden;
+        }
+
+        /* Размытый оверлей поверх серого круга (эффект жидкого стекла) */
+        .spinner-glass {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            opacity: 0.15;
+            overflow: hidden;
+        }
+
         .spinner-glass-img {
             position: absolute;
             left: 50%;
@@ -119,15 +208,59 @@
             object-fit: cover;
             filter: blur(var(--blur, 0px));
         }
-        .spinner-arc { position: absolute; inset: 0; border-radius: 50%; }
-        .spinner-arc svg { width: 100%; height: 100%; animation: spin 1s linear infinite; }
-        .spinner-arc circle { fill: none; stroke: #FFFFFF; stroke-width: 6.4; stroke-linecap: round; stroke-dasharray: 22 200; }
-        .spinner-cross { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
-        .spinner-cross svg { width: 51px; height: 51px; }
-        .spinner-cross line { stroke: #FFFFFF; stroke-width: 4.1; stroke-linecap: round; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .actions { display: none; gap: 12px; }
-        .actions.active { display: flex; }
+
+        /* Белая дуга - вращается - ТОЛЬКО ОДНА ДУГА */
+        .spinner-arc {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+        }
+
+        .spinner-arc svg {
+            width: 100%;
+            height: 100%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Одна дуга: длина 22, пробел 200 (очень длинный) */
+        .spinner-arc circle {
+            fill: none;
+            stroke: #FFFFFF;
+            stroke-width: 6.4; /* 10px в масштабе 156->80 */
+            stroke-linecap: round;
+            stroke-dasharray: 22 200; /* 22 - длина дуги, 200 - пробел (без второй дуги) */
+        }
+
+        /* Белый крест - золотой стандарт */
+        .spinner-cross {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .spinner-cross svg {
+            width: 51px;
+            height: 51px;
+        }
+
+        .spinner-cross line {
+            stroke: #FFFFFF;
+            stroke-width: 4.1; /* 8px в масштабе */
+            stroke-linecap: round;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+        }
+
         .btn {
             flex: 1;
             padding: 14px 24px;
@@ -136,11 +269,38 @@
             font-size: 15px;
             font-weight: 600;
             cursor: pointer;
+            transition: all 0.2s ease;
             font-family: inherit;
         }
-        .btn-primary { background: #0a84ff; color: white; }
-        .btn-secondary { background: #3a3a3c; color: #ffffff; }
-        #exportCanvas { display: none; }
+
+        .btn-primary {
+            background: #0a84ff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0a84ff;
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: #3a3a3c;
+            color: #ffffff;
+        }
+
+        .btn-secondary:hover {
+            background: #4a4a4c;
+        }
+
+        #exportCanvas {
+            display: none;
+        }
+
         .toast {
             position: fixed;
             bottom: 40px;
@@ -155,82 +315,54 @@
             opacity: 0;
             transition: all 0.3s ease;
             z-index: 1000;
+            backdrop-filter: blur(10px);
         }
-        .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
-        .save-modal {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.95);
-            z-index: 2000;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
         }
-        .save-modal.active { display: flex; }
-        .save-modal-content {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 100%;
-            max-width: 400px;
+
+        @media (max-width: 480px) {
+            body {
+                padding: 20px 16px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .container {
+                padding: 20px;
+            }
+
+            .spinner-container {
+                width: 60px;
+                height: 60px;
+            }
+
+            .spinner-cross svg {
+                width: 38px;
+                height: 38px;
+            }
+
+            .spinner-cross line {
+                stroke-width: 3;
+            }
+
+            .spinner-arc circle {
+                stroke-width: 4.8;
+                stroke-dasharray: 16 200;
+            }
         }
-        .save-modal img { 
-            max-width: 100%; 
-            max-height: 50vh; 
-            border-radius: 12px; 
-            margin-bottom: 20px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-        }
-        .save-modal-text { 
-            color: #fff; 
-            text-align: center; 
-            font-size: 15px; 
-            line-height: 1.5; 
-            margin-bottom: 24px;
-            opacity: 0.8;
-        }
-        .save-modal-buttons {
-            display: flex;
-            gap: 12px;
-            width: 100%;
-        }
-        .save-modal-btn {
-            flex: 1;
-            padding: 16px 24px;
-            border-radius: 12px;
-            border: none;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            font-family: inherit;
-        }
-        .save-modal-btn-secondary {
-            background: #3a3a3c;
-            color: #ffffff;
-        }
-        .save-modal-btn-primary {
-            background: #0a84ff;
-            color: white;
-        }
-        .loading { 
-            position: fixed; 
-            inset: 0; 
-            background: rgba(0,0,0,0.8); 
-            display: none; 
-            align-items: center; 
-            justify-content: center; 
-            z-index: 3000; 
-            flex-direction: column; 
-        }
-        .loading.active { display: flex; }
-        .loading-text { color: #fff; margin-top: 20px; font-size: 16px; }
     </style>
+<base target="_blank">
+<base target="_blank">
 </head>
 <body>
     <h1>Telegram Glass Loading</h1>
-    <p class="subtitle">iOS Version</p>
+    <p class="subtitle">Создайте эффект загрузки как в Telegram</p>
+
     <div class="container">
         <div class="upload-area" id="uploadArea">
             <input type="file" id="fileInput" accept="image/*">
@@ -240,28 +372,40 @@
                 <line x1="12" y1="3" x2="12" y2="15"></line>
             </svg>
             <div class="upload-text">Загрузить фото</div>
-            <div class="upload-hint">Нажмите для выбора</div>
+            <div class="upload-hint">Нажмите или перетащите изображение</div>
         </div>
-        <div class="controls" id="controls">
+
+        <div class="controls" id="controls" style="display: none;">
             <div class="control-group">
                 <div class="control-label">
-                    <span>Размытие</span>
+                    <span>Степень размытия</span>
                     <span class="value-badge" id="blurValue">0px</span>
                 </div>
-                <input type="range" id="blurSlider" min="0" max="100" value="0" step="0.5">
+                <input type="range" id="blurSlider" min="0" max="30" value="0" step="0.5">
             </div>
         </div>
+
         <div class="preview-container" id="previewContainer">
             <img class="preview-image" id="previewImage" alt="Preview">
+
             <div class="spinner-wrapper">
                 <div class="spinner-container">
+                    <!-- Серый фон -->
                     <div class="spinner-bg"></div>
+
+                    <!-- Размытый оверлей (жидкое стекло) -->
                     <div class="spinner-glass" id="spinnerGlass">
                         <img class="spinner-glass-img" id="spinnerGlassImg" alt="">
                     </div>
+
+                    <!-- Белая дуга (вращается) - ТОЛЬКО ОДНА -->
                     <div class="spinner-arc" id="spinnerArc">
-                        <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="38"/></svg>
+                        <svg viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="38"/>
+                        </svg>
                     </div>
+
+                    <!-- Белый крест - золотой стандарт -->
                     <div class="spinner-cross">
                         <svg viewBox="0 0 51 51">
                             <line x1="15" y1="15" x2="36" y2="36"/>
@@ -271,458 +415,366 @@
                 </div>
             </div>
         </div>
-        <div class="actions" id="actions">
-            <button class="btn btn-secondary" id="newPhotoBtn">Новое</button>
-            <button class="btn btn-primary" id="downloadBtn">Готово</button>
+
+        <div class="actions" id="actions" style="display: none;">
+            <button class="btn btn-secondary" id="newPhotoBtn">Новое фото</button>
+            <button class="btn btn-primary" id="downloadBtn">Сохранить фото</button>
         </div>
     </div>
+
     <canvas id="exportCanvas"></canvas>
-    <div class="toast" id="toast">Сохранено!</div>
-    <div class="loading" id="loading">
-        <div class="spinner-container" style="position: relative;">
-            <div class="spinner-bg"></div>
-            <div class="spinner-arc"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="38"/></svg></div>
-        </div>
-        <div class="loading-text">Обработка...</div>
-    </div>
-    <div class="save-modal" id="saveModal">
-        <div class="save-modal-content">
-            <img id="saveModalImg" src="" alt="Готовое изображение">
-            <div class="save-modal-text">
-                Изображение готово к сохранению
-            </div>
-            <div class="save-modal-buttons">
-                <button class="save-modal-btn save-modal-btn-secondary" onclick="closeSaveModal()">Назад</button>
-                <button class="save-modal-btn save-modal-btn-primary" onclick="saveImage()">Сохранить фото</button>
-            </div>
-        </div>
-    </div>
+    <div class="toast" id="toast">Фото сохранено!</div>
 
     <script>
-        // WebGL Gaussian Blur — исправленная версия без артефактов
-        const WebGLBlur = {
-            gl: null,
-            program: null,
-            framebuffers: [],
-            
-            vertexShader: `
-                attribute vec2 a_position;
-                attribute vec2 a_texCoord;
-                varying vec2 v_texCoord;
-                void main() {
-                    gl_Position = vec4(a_position, 0.0, 1.0);
-                    v_texCoord = a_texCoord;
-                }
-            `,
-            
-            fragmentShader: `
-                precision highp float;
-                varying vec2 v_texCoord;
-                uniform sampler2D u_image;
-                uniform vec2 u_textureSize;
-                uniform vec2 u_direction;
-                uniform float u_radius;
-                
-                void main() {
-                    vec2 onePixel = vec2(1.0) / u_textureSize;
-                    vec4 color = vec4(0.0);
-                    float total = 0.0;
-                    
-                    float sigma = u_radius * 0.5;
-                    float sigma2 = sigma * sigma * 2.0;
-                    
-                    float samples = min(u_radius * 2.0 + 1.0, 61.0);
-                    float halfSamples = floor(samples / 2.0);
-                    
-                    for (float i = -30.0; i <= 30.0; i += 1.0) {
-                        if (abs(i) > halfSamples) continue;
-                        
-                        float dist = i;
-                        float weight = exp(-(dist * dist) / sigma2);
-                        
-                        vec2 offset = onePixel * u_direction * dist;
-                        color += texture2D(u_image, v_texCoord + offset) * weight;
-                        total += weight;
-                    }
-                    
-                    gl_FragColor = color / total;
-                }
-            `,
-
-            init() {
-                const canvas = document.createElement('canvas');
-                const gl = canvas.getContext('webgl', { 
-                    preserveDrawingBuffer: true, 
-                    antialias: false,
-                    alpha: false
-                }) || canvas.getContext('experimental-webgl', {
-                    preserveDrawingBuffer: true,
-                    antialias: false,
-                    alpha: false
-                });
-                
-                if (!gl) return false;
-                this.gl = gl;
-                
-                const vs = this.createShader(gl.VERTEX_SHADER, this.vertexShader);
-                const fs = this.createShader(gl.FRAGMENT_SHADER, this.fragmentShader);
-                if (!vs || !fs) return false;
-                
-                this.program = this.createProgram(vs, fs);
-                if (!this.program) return false;
-                
-                gl.useProgram(this.program);
-                this.setupBuffers();
-                
-                return true;
-            },
-
-            createShader(type, source) {
-                const gl = this.gl;
-                const shader = gl.createShader(type);
-                gl.shaderSource(shader, source);
-                gl.compileShader(shader);
-                
-                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-                    console.error('Shader error:', gl.getShaderInfoLog(shader));
-                    gl.deleteShader(shader);
-                    return null;
-                }
-                return shader;
-            },
-
-            createProgram(vs, fs) {
-                const gl = this.gl;
-                const prog = gl.createProgram();
-                gl.attachShader(prog, vs);
-                gl.attachShader(prog, fs);
-                gl.linkProgram(prog);
-                
-                if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-                    console.error('Program error:', gl.getProgramInfoLog(prog));
-                    return null;
-                }
-                return prog;
-            },
-
-            setupBuffers() {
-                const gl = this.gl;
-                
-                const posBuf = gl.createBuffer();
-                gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
-                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-                    -1, -1,  1, -1,  -1, 1,
-                    -1, 1,   1, -1,   1, 1
-                ]), gl.STATIC_DRAW);
-                
-                const posLoc = gl.getAttribLocation(this.program, 'a_position');
-                gl.enableVertexAttribArray(posLoc);
-                gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
-                
-                const texBuf = gl.createBuffer();
-                gl.bindBuffer(gl.ARRAY_BUFFER, texBuf);
-                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-                    0, 1,  1, 1,  0, 0,
-                    0, 0,  1, 1,  1, 0
-                ]), gl.STATIC_DRAW);
-                
-                const texLoc = gl.getAttribLocation(this.program, 'a_texCoord');
-                gl.enableVertexAttribArray(texLoc);
-                gl.vertexAttribPointer(texLoc, 2, gl.FLOAT, false, 0, 0);
-            },
-
-            blur(image, radius) {
-                if (radius <= 0.5) return image;
-                
-                const gl = this.gl;
-                const w = image.naturalWidth || image.width;
-                const h = image.naturalHeight || image.height;
-                
-                const maxSize = 1600;
-                let srcW = w, srcH = h;
-                let srcImage = image;
-                
-                if (w > maxSize || h > maxSize) {
-                    const scale = maxSize / Math.max(w, h);
-                    srcW = Math.floor(w * scale);
-                    srcH = Math.floor(h * scale);
-                    
-                    const tempCanvas = document.createElement('canvas');
-                    tempCanvas.width = srcW;
-                    tempCanvas.height = srcH;
-                    const tempCtx = tempCanvas.getContext('2d');
-                    tempCtx.drawImage(image, 0, 0, srcW, srcH);
-                    srcImage = tempCanvas;
-                }
-                
-                gl.canvas.width = srcW;
-                gl.canvas.height = srcH;
-                
-                const tex = gl.createTexture();
-                gl.bindTexture(gl.TEXTURE_2D, tex);
-                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, srcImage);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-                
-                const fb = gl.createFramebuffer();
-                const tex2 = gl.createTexture();
-                gl.bindTexture(gl.TEXTURE_2D, tex2);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, srcW, srcH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-                
-                const imageLoc = gl.getUniformLocation(this.program, 'u_image');
-                const sizeLoc = gl.getUniformLocation(this.program, 'u_textureSize');
-                const dirLoc = gl.getUniformLocation(this.program, 'u_direction');
-                const radiusLoc = gl.getUniformLocation(this.program, 'u_radius');
-                
-                gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex2, 0);
-                gl.viewport(0, 0, srcW, srcH);
-                gl.activeTexture(gl.TEXTURE0);
-                gl.bindTexture(gl.TEXTURE_2D, tex);
-                gl.uniform1i(imageLoc, 0);
-                gl.uniform2f(sizeLoc, srcW, srcH);
-                gl.uniform2f(dirLoc, 1.0, 0.0);
-                gl.uniform1f(radiusLoc, radius);
-                gl.drawArrays(gl.TRIANGLES, 0, 6);
-                
-                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-                gl.bindTexture(gl.TEXTURE_2D, tex2);
-                gl.uniform2f(dirLoc, 0.0, 1.0);
-                gl.drawArrays(gl.TRIANGLES, 0, 6);
-                
-                gl.deleteTexture(tex);
-                gl.deleteTexture(tex2);
-                gl.deleteFramebuffer(fb);
-                
-                return gl.canvas;
-            }
-        };
-
-        let webglReady = WebGLBlur.init();
-        console.log('WebGL:', webglReady ? 'OK' : 'Failed');
-
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const controls = document.getElementById('controls');
         const previewContainer = document.getElementById('previewContainer');
         const previewImage = document.getElementById('previewImage');
         const spinnerGlassImg = document.getElementById('spinnerGlassImg');
+        const spinnerArc = document.getElementById('spinnerArc');
         const blurSlider = document.getElementById('blurSlider');
         const blurValue = document.getElementById('blurValue');
         const actions = document.getElementById('actions');
+        const newPhotoBtn = document.getElementById('newPhotoBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
         const exportCanvas = document.getElementById('exportCanvas');
-        const saveModal = document.getElementById('saveModal');
-        const saveModalImg = document.getElementById('saveModalImg');
-        const loading = document.getElementById('loading');
+        const toast = document.getElementById('toast');
 
-        let currentImage = null, currentBlur = 0, currentExportDataUrl = null;
+        let currentImage = null;
+        let currentBlur = 0;
+        let isProcessing = false;
+
+        // Определяем устройство
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
+
+        // Загрузка файла
+        uploadArea.addEventListener('click', (e) => {
+            if (e.target !== fileInput) {
+                fileInput.click();
+            }
+        });
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.style.borderColor = '#0a84ff';
+        });
+
+        uploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.style.borderColor = '#3a3a3c';
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.style.borderColor = '#3a3a3c';
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleFile(file);
+            }
+        });
 
         fileInput.addEventListener('change', (e) => {
+            e.stopPropagation();
             const file = e.target.files[0];
-            if (!file) return;
-            
+            if (file && !isProcessing) {
+                isProcessing = true;
+                handleFile(file);
+                setTimeout(() => {
+                    isProcessing = false;
+                }, 100);
+            }
+        });
+
+        function handleFile(file) {
             const reader = new FileReader();
-            reader.onload = (evt) => {
+            reader.onload = (e) => {
                 currentImage = new Image();
                 currentImage.onload = () => {
-                    previewImage.src = evt.target.result;
-                    spinnerGlassImg.src = evt.target.result;
+                    previewImage.src = e.target.result;
+                    spinnerGlassImg.src = e.target.result;
                     previewContainer.classList.add('active');
                     controls.style.display = 'block';
-                    actions.classList.add('active');
+                    actions.style.display = 'flex';
                     uploadArea.style.display = 'none';
+
                     updateContainerSize();
+
                     blurSlider.value = 10;
                     updateBlur(10);
                 };
-                currentImage.src = evt.target.result;
+                currentImage.src = e.target.result;
             };
             reader.readAsDataURL(file);
-        });
+        }
 
         function updateContainerSize() {
             const rect = previewContainer.getBoundingClientRect();
             previewContainer.style.setProperty('--container-width', rect.width + 'px');
             previewContainer.style.setProperty('--container-height', rect.height + 'px');
         }
+
         window.addEventListener('resize', updateContainerSize);
 
-        blurSlider.addEventListener('input', (e) => updateBlur(parseFloat(e.target.value)));
-        function updateBlur(val) {
-            currentBlur = val;
-            blurValue.textContent = val + 'px';
-            previewContainer.style.setProperty('--blur', val + 'px');
+        blurSlider.addEventListener('input', (e) => {
+            updateBlur(parseFloat(e.target.value));
+        });
+
+        function updateBlur(value) {
+            currentBlur = value;
+            blurValue.textContent = value + 'px';
+            previewContainer.style.setProperty('--blur', value + 'px');
         }
 
-        document.getElementById('newPhotoBtn').addEventListener('click', () => {
-            currentImage = null; currentBlur = 0; currentExportDataUrl = null;
-            previewImage.src = ''; spinnerGlassImg.src = ''; fileInput.value = '';
+        newPhotoBtn.addEventListener('click', () => {
+            currentImage = null;
+            currentBlur = 0;
+
+            previewImage.src = '';
+            spinnerGlassImg.src = '';
+            fileInput.value = '';
+
             previewContainer.classList.remove('active');
-            controls.style.display = 'none'; 
-            actions.classList.remove('active'); 
+            controls.style.display = 'none';
+            actions.style.display = 'none';
             uploadArea.style.display = 'block';
-            blurSlider.value = 0; 
+
+            blurSlider.value = 0;
             blurValue.textContent = '0px';
         });
 
-        document.getElementById('downloadBtn').addEventListener('click', exportImage);
-        window.closeSaveModal = () => saveModal.classList.remove('active');
-
-        async function getBlurredImage(srcImage, radius) {
-            if (radius <= 0.5 || !webglReady) return srcImage;
-            
-            try {
-                const blurred = WebGLBlur.blur(srcImage, radius);
-                const result = new Image();
-                await new Promise((resolve, reject) => {
-                    result.onload = resolve;
-                    result.onerror = reject;
-                    result.src = blurred.toDataURL('image/png');
-                });
-                return result;
-            } catch(e) {
-                console.error('Blur error:', e);
-                return srcImage;
-            }
+        function getCurrentRotation() {
+            const svg = spinnerArc.querySelector('svg');
+            const style = window.getComputedStyle(svg);
+            const matrix = new DOMMatrix(style.transform);
+            return Math.atan2(matrix.b, matrix.a) * (180 / Math.PI);
         }
 
-        async function exportImage() {
+        downloadBtn.addEventListener('click', () => {
             if (!currentImage) return;
-            loading.classList.add('active');
-            await new Promise(r => setTimeout(r, 50));
-            
-            const ctx = exportCanvas.getContext('2d');
-            const w = currentImage.naturalWidth;
-            const h = currentImage.naturalHeight;
-            
-            const maxExport = 1600;
-            let exportW = w, exportH = h;
-            if (w > maxExport || h > maxExport) {
-                const scale = maxExport / Math.max(w, h);
-                exportW = Math.floor(w * scale);
-                exportH = Math.floor(h * scale);
-            }
-            
-            exportCanvas.width = exportW; 
-            exportCanvas.height = exportH;
-            
-            const blurred = await getBlurredImage(currentImage, currentBlur);
-            ctx.drawImage(blurred, 0, 0, exportW, exportH);
-            
-            const spinnerX = exportW / 2, spinnerY = exportH / 2;
-            const previewW = previewContainer.offsetWidth;
-            const scale = (exportW / previewW) * 80 / 156;
-            const rot = getRotation();
-            
-            drawSpinner(ctx, spinnerX, spinnerY, scale, rot);
-            
-            currentExportDataUrl = exportCanvas.toDataURL('image/png');
-            saveModalImg.src = currentExportDataUrl;
-            loading.classList.remove('active');
-            saveModal.classList.add('active');
-        }
+            exportImage();
+        });
 
-        // Функция сохранения с несколькими fallback методами
-        window.saveImage = async function() {
-            if (!currentExportDataUrl) return;
-            
-            try {
-                // Метод 1: Попытка использовать Web Share API (работает в iOS Safari и WebView)
-                if (navigator.share && navigator.canShare) {
-                    const response = await fetch(currentExportDataUrl);
-                    const blob = await response.blob();
-                    const file = new File([blob], 'telegram-loading.png', { type: 'image/png' });
-                    
-                    if (navigator.canShare({ files: [file] })) {
-                        await navigator.share({
-                            files: [file]
-                        });
-                        showToast('Открыто меню сохранения');
-                        return;
-                    }
-                }
-            } catch (e) {
-                console.log('Share API failed:', e);
+        function exportImage() {
+            const ctx = exportCanvas.getContext('2d');
+            const width = currentImage.naturalWidth;
+            const height = currentImage.naturalHeight;
+
+            // Создаем временный canvas для размытия без прозрачности
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+
+            const padding = Math.ceil(currentBlur * 3);
+            tempCanvas.width = width + padding * 2;
+            tempCanvas.height = height + padding * 2;
+
+            tempCtx.drawImage(currentImage, padding, padding, width, height);
+
+            // Заполняем края
+            tempCtx.drawImage(currentImage, 0, 0, 1, height, 0, padding, padding, height);
+            tempCtx.drawImage(currentImage, width-1, 0, 1, height, width+padding, padding, padding, height);
+            tempCtx.drawImage(currentImage, 0, 0, width, 1, padding, 0, width, padding);
+            tempCtx.drawImage(currentImage, 0, height-1, width, 1, padding, height+padding, width, padding);
+
+            // Для iOS используем downscale/upscale вместо filter
+            if (isIOS && currentBlur > 0) {
+                const blurAmount = currentBlur / 100;
+                const smallWidth = Math.max(1, Math.floor(width * (1 - blurAmount)));
+                const smallHeight = Math.max(1, Math.floor(height * (1 - blurAmount)));
+
+                const blurCanvas = document.createElement('canvas');
+                const blurCtx = blurCanvas.getContext('2d');
+                blurCanvas.width = smallWidth;
+                blurCanvas.height = smallHeight;
+
+                blurCtx.drawImage(tempCanvas, 0, 0, tempCanvas.width, tempCanvas.height, 0, 0, smallWidth, smallHeight);
+
+                tempCtx.imageSmoothingEnabled = true;
+                tempCtx.imageSmoothingQuality = 'high';
+                tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+                tempCtx.drawImage(blurCanvas, 0, 0, smallWidth, smallHeight, 0, 0, tempCanvas.width, tempCanvas.height);
+            } else {
+                tempCtx.filter = `blur(${currentBlur}px)`;
+                tempCtx.drawImage(tempCanvas, 0, 0);
+                tempCtx.filter = 'none';
             }
-            
-            try {
-                // Метод 2: Создание ссылки для скачивания
-                const link = document.createElement('a');
-                link.download = 'telegram-loading.png';
-                link.href = currentExportDataUrl;
-                link.target = '_blank';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                showToast('Сохранение началось');
-            } catch (e) {
-                console.error('Save failed:', e);
-                // Метод 3: Открыть в новом окне как fallback
+
+            exportCanvas.width = width;
+            exportCanvas.height = height;
+
+            ctx.drawImage(tempCanvas, padding, padding, width, height, 0, 0, width, height);
+
+            // Рисуем спиннер в центре
+            const centerX = width / 2;
+            const centerY = height / 2;
+
+            // Масштабируем золотой стандарт 156px к размеру изображения
+            const previewWidth = previewContainer.offsetWidth;
+            const scaleFactor = width / previewWidth;
+            const spinnerSize = 80 * scaleFactor;
+
+            const rotation = getCurrentRotation();
+
+            drawTelegramSpinner(ctx, centerX, centerY, spinnerSize, rotation);
+
+            const dataUrl = exportCanvas.toDataURL('image/png');
+
+            if (isAndroid) {
+                // Для Android: открываем в новом окне с инструкцией
                 const newWindow = window.open();
                 if (newWindow) {
                     newWindow.document.write(`
+                        <!DOCTYPE html>
                         <html>
-                        <head><title>Сохранить изображение</title></head>
-                        <body style="margin:0;display:flex;align-items:center;justify-content:center;background:#000;">
-                        <img src="${currentExportDataUrl}" style="max-width:100%;max-height:100vh;" onclick="window.location.href=this.src">
-                        <div style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,0.9);padding:12px 20px;border-radius:8px;font-family:sans-serif;font-size:14px;">
-                        Нажмите и удерживайте на фото → Сохранить изображение
-                        </div>
-                        </body></html>
+                        <head>
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                            <title>Сохраните фото</title>
+                            <style>
+                                * { margin: 0; padding: 0; box-sizing: border-box; }
+                                body { 
+                                    background: #000; 
+                                    display: flex; 
+                                    flex-direction: column;
+                                    align-items: center; 
+                                    justify-content: center; 
+                                    min-height: 100vh;
+                                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                    padding: 20px;
+                                }
+                                img { 
+                                    max-width: 100%; 
+                                    max-height: 80vh; 
+                                    border-radius: 12px;
+                                    margin-bottom: 20px;
+                                }
+                                .instruction {
+                                    color: #fff;
+                                    text-align: center;
+                                    font-size: 17px;
+                                    line-height: 1.5;
+                                    margin-bottom: 8px;
+                                }
+                                .hint {
+                                    color: #8e8e93;
+                                    text-align: center;
+                                    font-size: 14px;
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <img src="${dataUrl}" alt="Нажмите и удерживайте для сохранения">
+                            <div class="instruction">
+                                📱 Удерживайте палец на фото<br>и выберите «Сохранить изображение»
+                            </div>
+                            <div class="hint">Или «Скачать изображение» в зависимости от браузера</div>
+                        </body>
+                        </html>
                     `);
-                    showToast('Открылось новое окно');
+                } else {
+                    window.location.href = dataUrl;
                 }
+            } else {
+                // Для ПК и iOS: автоматическое скачивание
+                const link = document.createElement('a');
+                link.download = 'telegram-loading-' + Date.now() + '.png';
+                link.href = dataUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast();
             }
-        };
-
-        function showToast(msg) {
-            const toast = document.getElementById('toast');
-            toast.textContent = msg;
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 2000);
         }
 
-        function getRotation() {
-            const svg = document.querySelector('#spinnerArc svg');
-            const style = window.getComputedStyle(svg);
-            const m = new DOMMatrix(style.transform);
-            return Math.atan2(m.b, m.a) * (180 / Math.PI);
-        }
-
-        function drawSpinner(ctx, cx, cy, scale, rotation) {
+        function drawTelegramSpinner(ctx, x, y, size, rotation) {
             ctx.save();
-            ctx.translate(cx, cy);
-            ctx.scale(scale, scale);
-            
+            ctx.translate(x, y);
+
+            // Масштаб от золотого стандарта 156px
+            const scale = size / 156;
+
+            // Серый фон круга
             ctx.beginPath();
-            ctx.arc(0, 0, 78, 0, Math.PI * 2);
+            ctx.arc(0, 0, 78 * scale, 0, Math.PI * 2);
             ctx.fillStyle = '#484848';
             ctx.fill();
-            
+
+            // Размытый оверлей (жидкое стекло)
+            if (currentBlur > 0) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(0, 0, 78 * scale, 0, Math.PI * 2);
+                ctx.clip();
+
+                ctx.globalAlpha = 0.35;
+
+                if (isIOS) {
+                    // Для iOS используем downscale для стекла тоже
+                    const blurAmount = currentBlur / 100;
+                    const glassSize = Math.ceil(156 * scale);
+                    const smallSize = Math.max(1, Math.floor(glassSize * (1 - blurAmount)));
+
+                    const glassCanvas = document.createElement('canvas');
+                    const glassCtx = glassCanvas.getContext('2d');
+                    glassCanvas.width = smallSize;
+                    glassCanvas.height = smallSize;
+
+                    const sourceX = (x - 78 * scale) * (currentImage.naturalWidth / exportCanvas.width);
+                    const sourceY = (y - 78 * scale) * (currentImage.naturalHeight / exportCanvas.height);
+                    const sourceSize = (156 * scale) * (currentImage.naturalWidth / exportCanvas.width);
+
+                    glassCtx.drawImage(currentImage, sourceX, sourceY, sourceSize, sourceSize, 0, 0, smallSize, smallSize);
+
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(glassCanvas, -78 * scale, -78 * scale, 156 * scale, 156 * scale);
+                } else {
+                    ctx.filter = `blur(${currentBlur}px)`;
+                    ctx.drawImage(currentImage, -x, -y, currentImage.naturalWidth, currentImage.naturalHeight);
+                }
+
+                ctx.restore();
+            }
+
+            // Белая дуга
             ctx.save();
-            ctx.rotate(rotation * Math.PI / 180);
+            ctx.rotate((rotation * Math.PI) / 180);
+
             ctx.beginPath();
-            ctx.arc(0, 0, 63, 0, Math.PI * 0.33);
+            ctx.arc(0, 0, 63 * scale, 0, Math.PI * 0.33);
             ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 10;
+            ctx.lineWidth = 10 * scale;
             ctx.lineCap = 'round';
             ctx.stroke();
             ctx.restore();
-            
+
+            // Белый крест
+            const halfCross = 23 * scale;
             ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 8;
+            ctx.lineWidth = 8 * scale;
             ctx.lineCap = 'round';
-            ctx.beginPath(); ctx.moveTo(-23, -23); ctx.lineTo(23, 23); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(23, -23); ctx.lineTo(-23, 23); ctx.stroke();
-            
+
+            ctx.beginPath();
+            ctx.moveTo(-halfCross, -halfCross);
+            ctx.lineTo(halfCross, halfCross);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(halfCross, -halfCross);
+            ctx.lineTo(-halfCross, halfCross);
+            ctx.stroke();
+
             ctx.restore();
+        }
+
+        function showToast() {
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2000);
         }
     </script>
 </body>
